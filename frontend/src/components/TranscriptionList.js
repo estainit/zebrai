@@ -121,6 +121,11 @@ const TranscriptionList = ({ credentials }) => {
 
     const handlePlay = async (id) => {
         try {
+            // Show loading state for this specific transcription
+            setTranscriptions(prev => 
+                prev.map(t => t.id === id ? {...t, isPlaying: true} : t)
+            );
+            
             const response = await fetch(`/api/transcriptions/${id}/audio`, {
                 headers: {
                     'Authorization': `Bearer ${credentials}`
@@ -133,36 +138,70 @@ const TranscriptionList = ({ credentials }) => {
 
             const audioBlob = await response.blob();
             
-            // Create a WebM blob with proper MIME type
-            const webmBlob = new Blob([audioBlob], { type: 'audio/webm;codecs=opus' });
+            // Create a WebM blob with proper MIME type and codec
+            const webmBlob = new Blob([audioBlob], { 
+                type: 'audio/webm;codecs=opus'
+            });
             
             // Create object URL
             const audioUrl = URL.createObjectURL(webmBlob);
             
             // Create and configure audio element
-            const audio = new Audio(audioUrl);
+            const audio = new Audio();
             
-            // Add event listeners for cleanup
+            // Set up event listeners before setting src
             const cleanup = () => {
                 URL.revokeObjectURL(audioUrl);
-                audio.removeEventListener('ended', cleanup);
-                audio.removeEventListener('error', cleanup);
+                audio.removeEventListener('ended', handleEnded);
+                audio.removeEventListener('error', handleError);
+                audio.removeEventListener('loadeddata', handleLoadedData);
+                
+                // Update UI to show not playing
+                setTranscriptions(prev => 
+                    prev.map(t => t.id === id ? {...t, isPlaying: false} : t)
+                );
             };
             
-            audio.addEventListener('ended', cleanup);
-            audio.addEventListener('error', cleanup);
+            const handleLoadedData = () => {
+                console.log('Audio loaded successfully');
+            };
+            
+            const handleEnded = () => {
+                console.log('Audio playback ended');
+                cleanup();
+            };
+            
+            const handleError = (e) => {
+                console.error('Audio playback error:', e);
+                // Don't throw the error, just log it and show a user-friendly message
+                setError(`Failed to play audio for transcription ${id}. The audio file may be corrupted.`);
+                cleanup();
+            };
+            
+            // Add event listeners
+            audio.addEventListener('ended', handleEnded);
+            audio.addEventListener('error', handleError);
+            audio.addEventListener('loadeddata', handleLoadedData);
+            
+            // Set source after adding listeners
+            audio.src = audioUrl;
             
             // Play the audio
             try {
                 await audio.play();
             } catch (playError) {
                 console.error('Error playing audio:', playError);
+                setError(`Failed to play audio for transcription ${id}. The audio file may be corrupted.`);
                 cleanup();
-                throw playError;
             }
         } catch (err) {
             console.error('Error playing audio:', err);
-            setError('Failed to play audio. Please try again.');
+            setError(`Failed to play audio for transcription ${id}. Please try again.`);
+            
+            // Reset playing state
+            setTranscriptions(prev => 
+                prev.map(t => t.id === id ? {...t, isPlaying: false} : t)
+            );
         }
     };
 
@@ -176,12 +215,20 @@ const TranscriptionList = ({ credentials }) => {
         return <div className="loading">Loading transcriptions...</div>;
     }
 
-    if (error) {
-        return <div className="error">{error}</div>;
-    }
-
     return (
         <div className="transcription-list">
+            {error && (
+                <div className="error-message">
+                    {error}
+                    <button 
+                        className="dismiss-error" 
+                        onClick={() => setError(null)}
+                        title="Dismiss error"
+                    >
+                        ×
+                    </button>
+                </div>
+            )}
             <div className="transcription-list-header">
                 <div className="select-all-container">
                     <input
@@ -228,8 +275,9 @@ const TranscriptionList = ({ credentials }) => {
                                     className="play-button" 
                                     onClick={() => handlePlay(transcription.id)}
                                     title="Play audio"
+                                    disabled={transcription.isPlaying}
                                 >
-                                    <FaPlay />
+                                    {transcription.isPlaying ? 'Playing...' : <FaPlay />}
                                 </button>
                                 <button 
                                     className="delete-button" 

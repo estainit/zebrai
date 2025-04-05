@@ -279,6 +279,11 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str, db: AsyncSes
             do_transcript = False
             logger.info(f"User {username} transcription enabled: {do_transcript}")
             
+            # Create a temporary file for this session
+            temp_file_path = os.path.join(TEMP_AUDIO_DIR, f"{session_id}.webm")
+            is_first_chunk = True
+            audio_chunks = []
+            
             while True:
                 audio_data = await websocket.receive_bytes()
                 logger.debug(f"Received {len(audio_data)} bytes for session {session_id}")
@@ -286,14 +291,13 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str, db: AsyncSes
                 if not audio_data:
                     continue
 
-                # Generate a unique filename for this chunk
-                chunk_filename = f"{session_id}_{uuid.uuid4()}.webm"
-                temp_file_path = os.path.join(TEMP_AUDIO_DIR, chunk_filename)
-
                 try:
-                    # Save the chunk with WebM header if it's the first chunk
-                    if not os.path.exists(temp_file_path):
-                        # Add WebM header for the first chunk
+                    # Store the chunk
+                    audio_chunks.append(audio_data)
+                    
+                    # For the first chunk, create a new file with WebM header
+                    if is_first_chunk:
+                        # Add WebM header
                         webm_header = bytes([
                             0x1A, 0x45, 0xDF, 0xA3,  # EBML Header
                             0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x20,  # EBML Version
@@ -321,37 +325,33 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str, db: AsyncSes
                         async with aiofiles.open(temp_file_path, "wb") as temp_file:
                             await temp_file.write(webm_header)
                             await temp_file.write(audio_data)
+                        is_first_chunk = False
                     else:
-                        # Append the chunk without header
+                        # Append subsequent chunks
                         async with aiofiles.open(temp_file_path, "ab") as temp_file:
                             await temp_file.write(audio_data)
 
-                    # Save to database with proper WebM format
-                    if not os.path.exists(temp_file_path):
-                        # For first chunk, include header
-                        with open(temp_file_path, "rb") as f:
-                            audio_data = f.read()
-                    else:
-                        # For subsequent chunks, just use the chunk data
-                        audio_data = audio_data
+                    # Save to database periodically (every 5 chunks)
+                    if len(audio_chunks) % 5 == 0:
+                        # Read the complete file for database storage
+                        async with aiofiles.open(temp_file_path, "rb") as temp_file:
+                            complete_audio = await temp_file.read()
 
-                    insert_query = transcription_chunks.insert().values(
-                        session_id=session_id,
-                        audio_chunk=audio_data,
-                        transcript=None  # Will be updated after transcription
-                    )
-                    await db.execute(insert_query)
-                    await db.commit()
+                        # Save to database
+                        insert_query = transcription_chunks.insert().values(
+                            session_id=session_id,
+                            audio_chunk=complete_audio,
+                            transcript=None  # Will be updated after transcription
+                        )
+                        await db.execute(insert_query)
+                        await db.commit()
+                        logger.info(f"Saved audio chunk to database for session {session_id}")
 
                     # Transcribe if enabled
                     if do_transcript:
                         try:
-                            # Create a copy of the audio file for transcription
-                            with open(temp_file_path, "rb") as audio_file:
-                                audio_data_for_transcription = audio_file.read()
-                                
                             # Create a BytesIO object from the audio data
-                            audio_io = io.BytesIO(audio_data_for_transcription)
+                            audio_io = io.BytesIO(audio_data)
                             
                             # Transcribe the audio
                             transcript = await transcribe_audio(audio_io)
@@ -366,21 +366,18 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str, db: AsyncSes
                                 
                                 # Send transcript back to client
                                 await websocket.send_json({
-                                    "transcript": transcript,
-                                    "chunk_id": chunk_filename
+                                    "transcript": transcript
                                 })
                         except Exception as e:
                             logger.error(f"Transcription error: {e}")
                             await websocket.send_json({
-                                "error": f"Transcription failed: {str(e)}",
-                                "chunk_id": chunk_filename
+                                "error": f"Transcription failed: {str(e)}"
                             })
 
                 except Exception as e:
                     logger.error(f"Error processing audio chunk: {e}")
                     await websocket.send_json({
-                        "error": f"Failed to process audio chunk: {str(e)}",
-                        "chunk_id": chunk_filename
+                        "error": f"Failed to process audio chunk: {str(e)}"
                     })
 
         except InvalidTokenError:
