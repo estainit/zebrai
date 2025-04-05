@@ -1,0 +1,25 @@
+
+run second psql (dockerized):
+    docker run --name postgres-docker -e POSTGRES_USER=userzebrai -e POSTGRES_PASSWORD=passzebrai -e POSTGRES_DB=dbzebrai -p 5444:5432 -d postgres:13
+
+
+Create the Virtual Environment:
+    python3.11 -m venv myvenv
+Activate the Virtual Environment:
+    source myvenv/bin/activate
+deactivate the Virtual Environment:
+    deactivate
+
+run backend server:
+    uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    python3 -m uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+
+kill all backend instances:
+    pkill -f "uvicorn main:app"
+
+install what backend needs (inside venv):
+    pip install -r requirements.txt
+
+
+chnage password:
+    curl -X POST http://localhost:8000/api/reset-password -H "Content-Type: application/json" -d '{"username": "admin", "new_password": "admin"}'

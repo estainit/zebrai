@@ -1,0 +1,42 @@
+version: '3.8'
+
+services:
+  zebdb:
+    image: postgres:13
+    container_name: dbzebrai
+    environment:
+      POSTGRES_DB: dbzebrai
+      POSTGRES_USER: userzebrai
+      POSTGRES_PASSWORD: passzebrai
+    ports:
+      - "5444:5432"
+    restart: unless-stopped
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - zeb_network
+
+  zebpgadmin:
+    image: dpage/pgadmin4
+    container_name: zebc_pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@zebrai.com
+      PGADMIN_DEFAULT_PASSWORD: admin123
+      PGADMIN_CONFIG_SERVER_MODE: 'False'
+    ports:
+      - "5055:80"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    restart: unless-stopped
+    networks:
+      - zeb_network
+    depends_on:
+      - zebdb
+
+volumes:
+  postgres_data:
+  pgadmin_data:
+
+networks:
+  zeb_network:
+    driver: bridge

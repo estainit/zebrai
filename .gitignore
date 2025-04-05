@@ -1,0 +1,12 @@
+
+__pycache__/*
+*.pyc 
+myvenv
+
+backend/myvenv
+backend/*.pyc
+backend/__pycache__/*
+
+
+
+frontend/node_module

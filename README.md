@@ -1,2 +1,1 @@
-# zebrai
-ai
+readme
