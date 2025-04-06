@@ -239,7 +239,7 @@ active_connections: dict[str, WebSocket] = {}
 # --- WebSocket Endpoint ---
 @app.websocket("/ws/{session_id}")
 async def websocket_endpoint(websocket: WebSocket, session_id: str, db: AsyncSession = Depends(get_db_session)):
-    """Handles WebSocket connections, receives audio chunks, transcribes, saves, and returns text."""
+    """Handles WebSocket connections for audio recording. Completely isolated from transcription."""
     await websocket.accept()
     
     try:
@@ -254,8 +254,8 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str, db: AsyncSes
             await websocket.close(code=4001, reason="No token provided")
             return
             
-        # Verify token
         try:
+            # Verify token
             payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
             username = payload.get("sub")
             if not username:
@@ -274,119 +274,66 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str, db: AsyncSes
             active_connections[session_id] = websocket
             logger.info(f"WebSocket connection accepted for session: {session_id}, user: {username}")
             
-            # Get user's transcription preference
-            do_transcript = user.conf.get("doTranscript", True)
-            do_transcript = False
-            logger.info(f"User {username} transcription enabled: {do_transcript}")
-            
             # Create a temporary file for this session
             temp_file_path = os.path.join(TEMP_AUDIO_DIR, f"{session_id}.webm")
             
-            # Initialize variables for tracking audio data
-            audio_chunks = []
-            chunk_counter = 0
-            recording_start_time = datetime.now()
-            
-            # Create an empty file to start with
-            async with aiofiles.open(temp_file_path, "w") as temp_file:
-                await temp_file.write("")
-            
-            # Main WebSocket loop
+            # FOCUSED ONLY ON RECORDING
+            # Main WebSocket loop - stripped of all non-recording functionality
             while True:
                 try:
-                    # Receive audio data
+                    # Receive audio data - this is the only operation in the loop
                     audio_data = await websocket.receive_bytes()
-                    logger.debug(f"Received {len(audio_data)} bytes for session {session_id}")
-
+                    
                     if not audio_data:
                         continue
 
-                    # Store the chunk
-                    audio_chunks.append(audio_data)
-                    chunk_counter += 1
-                    
-                    # Save the raw audio data to the file
+                    # Immediately save the raw audio data to the file
+                    # No other operations that could potentially fail
                     async with aiofiles.open(temp_file_path, "ab") as temp_file:
                         await temp_file.write(audio_data)
 
-                    # Transcribe if enabled
-                    if do_transcript:
-                        try:
-                            # Create a BytesIO object from the audio data
-                            audio_io = io.BytesIO(audio_data)
-                            
-                            # Transcribe the audio
-                            transcript = await transcribe_audio(audio_io)
-                            
-                            if transcript:
-                                # Send transcript back to client
-                                await websocket.send_json({
-                                    "transcript": transcript
-                                })
-                        except Exception as e:
-                            logger.error(f"Transcription error: {e}")
-                            await websocket.send_json({
-                                "error": f"Transcription failed: {str(e)}"
-                            })
-
                 except WebSocketDisconnect:
-                    logger.info(f"WebSocket disconnected for session: {session_id}")
-                    # Save the complete recording to database
-                    try:
-                        # Read the complete file for database storage
-                        async with aiofiles.open(temp_file_path, "rb") as temp_file:
-                            complete_audio = await temp_file.read()
-
-                        # Save to database as a single record
-                        insert_query = transcription_chunks.insert().values(
-                            session_id=session_id,
-                            user_id=user.id,
-                            audio_chunk=complete_audio,
-                            transcript=None  # Will be updated after transcription
-                        )
-                        await db.execute(insert_query)
-                        await db.commit()
-                        logger.info(f"Saved complete recording to database for session {session_id}")
-                    except Exception as e:
-                        logger.error(f"Error saving complete recording: {e}")
-                    
-                    if session_id in active_connections:
-                        del active_connections[session_id]
                     break
                 except Exception as e:
-                    logger.error(f"Error receiving data: {e}")
-                    # Continue listening for more data
+                    logger.error(f"Error in recording loop: {e}")
+                    # Continue recording despite any errors
+                    continue
 
-        except InvalidTokenError:
-            await websocket.close(code=4002, reason="Invalid token")
         except Exception as e:
-            logger.error(f"WebSocket error: {e}")
-            await websocket.close(code=4002, reason=str(e))
-    except WebSocketDisconnect:
-        logger.info(f"WebSocket disconnected for session: {session_id}")
-        # Save the complete recording to database
+            logger.error(f"Error in WebSocket connection: {e}")
+            # Only close if authentication failed
+            if "Invalid token" in str(e):
+                await websocket.close(code=4002, reason=str(e))
+            
+    finally:
+        # Save recording on disconnect, but don't let any errors stop the cleanup
         try:
-            # Read the complete file for database storage
-            async with aiofiles.open(temp_file_path, "rb") as temp_file:
-                complete_audio = await temp_file.read()
-
-            # Save to database as a single record
-            insert_query = transcription_chunks.insert().values(
-                session_id=session_id,
-                user_id=user.id,
-                audio_chunk=complete_audio,
-                transcript=None  # Will be updated after transcription
-            )
-            await db.execute(insert_query)
-            await db.commit()
-            logger.info(f"Saved complete recording to database for session {session_id}")
+            if os.path.exists(temp_file_path):
+                async with aiofiles.open(temp_file_path, "rb") as temp_file:
+                    complete_audio = await temp_file.read()
+                
+                # Save to database
+                try:
+                    insert_query = transcription_chunks.insert().values(
+                        session_id=session_id,
+                        user_id=user.id,
+                        audio_chunk=complete_audio,
+                        transcript=None
+                    )
+                    await db.execute(insert_query)
+                    await db.commit()
+                    logger.info(f"Saved recording for session {session_id}")
+                except Exception as e:
+                    logger.error(f"Failed to save to database: {e}")
+                    
+                # Cleanup temp file
+                try:
+                    os.unlink(temp_file_path)
+                except Exception as e:
+                    logger.error(f"Failed to cleanup temp file: {e}")
         except Exception as e:
-            logger.error(f"Error saving complete recording: {e}")
+            logger.error(f"Error in cleanup: {e}")
         
-        if session_id in active_connections:
-            del active_connections[session_id]
-    except Exception as e:
-        logger.error(f"Unexpected error in WebSocket endpoint: {e}")
         if session_id in active_connections:
             del active_connections[session_id]
 
