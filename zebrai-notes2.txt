@@ -21,6 +21,20 @@ install what backend needs (inside venv):
     pip install -r requirements.txt
 
 
+    To run the tests, you can use the following commands:
+        1. Install test dependencies: pip install -r backend/tests/requirements-test.txt
+        2. Run all tests: pytest backend/tests/
+        3. Run specific test types:
+            - Unit tests: pytest backend/tests/unit/
+            - Integration tests: pytest backend/tests/integration/
+            - E2E tests: pytest backend/tests/e2e/
+            - For unit tests only: pytest backend/tests/ -m unit
+            - For integration tests only: pytest backend/tests/ -m integration
+            - For e2e tests only: pytest backend/tests/ -m e2e
+
+        4. Run with coverage: pytest backend/tests/ --cov=app
+        5. Run with benchmarks: pytest backend/tests/ --benchmark-only
+
 chnage password:
     curl -X POST http://localhost:8000/api/reset-password -H "Content-Type: application/json" -d '{"username": "admin", "new_password": "admin"}'
 
