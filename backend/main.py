@@ -281,30 +281,69 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str, db: AsyncSes
             
             # Create a temporary file for this session
             temp_file_path = os.path.join(TEMP_AUDIO_DIR, f"{session_id}.webm")
+            
+            # Initialize variables for tracking audio data
             audio_chunks = []
+            chunk_counter = 0
+            recording_start_time = datetime.now()
+            
+            # Create an empty file to start with
+            async with aiofiles.open(temp_file_path, "w") as temp_file:
+                await temp_file.write("")
             
             while True:
-                audio_data = await websocket.receive_bytes()
-                logger.debug(f"Received {len(audio_data)} bytes for session {session_id}")
-
-                if not audio_data:
-                    continue
-
                 try:
-                    # Store the chunk
-                    audio_chunks.append(audio_data)
-                    
-                    # Save the raw audio data to the file
-                    async with aiofiles.open(temp_file_path, "ab") as temp_file:
-                        await temp_file.write(audio_data)
+                    # Receive audio data
+                    audio_data = await websocket.receive_bytes()
+                    logger.debug(f"Received {len(audio_data)} bytes for session {session_id}")
 
-                    # Save to database periodically (every 5 chunks)
-                    if len(audio_chunks) % 5 == 0:
+                    if not audio_data:
+                        continue
+
+                    try:
+                        # Store the chunk
+                        audio_chunks.append(audio_data)
+                        chunk_counter += 1
+                        
+                        # Save the raw audio data to the file
+                        async with aiofiles.open(temp_file_path, "ab") as temp_file:
+                            await temp_file.write(audio_data)
+
+                        # Transcribe if enabled
+                        if do_transcript:
+                            try:
+                                # Create a BytesIO object from the audio data
+                                audio_io = io.BytesIO(audio_data)
+                                
+                                # Transcribe the audio
+                                transcript = await transcribe_audio(audio_io)
+                                
+                                if transcript:
+                                    # Send transcript back to client
+                                    await websocket.send_json({
+                                        "transcript": transcript
+                                    })
+                            except Exception as e:
+                                logger.error(f"Transcription error: {e}")
+                                await websocket.send_json({
+                                    "error": f"Transcription failed: {str(e)}"
+                                })
+
+                    except Exception as e:
+                        logger.error(f"Error processing audio chunk: {e}")
+                        await websocket.send_json({
+                            "error": f"Failed to process audio chunk: {str(e)}"
+                        })
+
+                except WebSocketDisconnect:
+                    logger.info(f"WebSocket disconnected for session: {session_id}")
+                    # Save the complete recording to database
+                    try:
                         # Read the complete file for database storage
                         async with aiofiles.open(temp_file_path, "rb") as temp_file:
                             complete_audio = await temp_file.read()
 
-                        # Save to database
+                        # Save to database as a single record
                         insert_query = transcription_chunks.insert().values(
                             session_id=session_id,
                             audio_chunk=complete_audio,
@@ -312,40 +351,16 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str, db: AsyncSes
                         )
                         await db.execute(insert_query)
                         await db.commit()
-                        logger.info(f"Saved audio chunk to database for session {session_id}")
-
-                    # Transcribe if enabled
-                    if do_transcript:
-                        try:
-                            # Create a BytesIO object from the audio data
-                            audio_io = io.BytesIO(audio_data)
-                            
-                            # Transcribe the audio
-                            transcript = await transcribe_audio(audio_io)
-                            
-                            if transcript:
-                                # Update the chunk's transcript in the database
-                                update_query = transcription_chunks.update().where(
-                                    transcription_chunks.c.session_id == session_id
-                                ).values(transcript=transcript)
-                                await db.execute(update_query)
-                                await db.commit()
-                                
-                                # Send transcript back to client
-                                await websocket.send_json({
-                                    "transcript": transcript
-                                })
-                        except Exception as e:
-                            logger.error(f"Transcription error: {e}")
-                            await websocket.send_json({
-                                "error": f"Transcription failed: {str(e)}"
-                            })
-
+                        logger.info(f"Saved complete recording to database for session {session_id}")
+                    except Exception as e:
+                        logger.error(f"Error saving complete recording: {e}")
+                    
+                    if session_id in active_connections:
+                        del active_connections[session_id]
+                    break
                 except Exception as e:
-                    logger.error(f"Error processing audio chunk: {e}")
-                    await websocket.send_json({
-                        "error": f"Failed to process audio chunk: {str(e)}"
-                    })
+                    logger.error(f"Error receiving data: {e}")
+                    # Continue listening for more data
 
         except InvalidTokenError:
             await websocket.close(code=4002, reason="Invalid token")
@@ -354,6 +369,24 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str, db: AsyncSes
             await websocket.close(code=4002, reason=str(e))
     except WebSocketDisconnect:
         logger.info(f"WebSocket disconnected for session: {session_id}")
+        # Save the complete recording to database
+        try:
+            # Read the complete file for database storage
+            async with aiofiles.open(temp_file_path, "rb") as temp_file:
+                complete_audio = await temp_file.read()
+
+            # Save to database as a single record
+            insert_query = transcription_chunks.insert().values(
+                session_id=session_id,
+                audio_chunk=complete_audio,
+                transcript=None  # Will be updated after transcription
+            )
+            await db.execute(insert_query)
+            await db.commit()
+            logger.info(f"Saved complete recording to database for session {session_id}")
+        except Exception as e:
+            logger.error(f"Error saving complete recording: {e}")
+        
         if session_id in active_connections:
             del active_connections[session_id]
     except Exception as e:
@@ -494,7 +527,8 @@ async def get_transcription_audio(
             media_type="audio/webm;codecs=opus",
             headers={
                 "Content-Disposition": f"attachment; filename=transcription_{transcription_id}.webm",
-                "Accept-Ranges": "bytes"
+                "Accept-Ranges": "bytes",
+                "Cache-Control": "no-cache, no-store, must-revalidate"
             }
         )
     except Exception as e:

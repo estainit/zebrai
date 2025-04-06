@@ -11,6 +11,7 @@ const TranscriptionList = ({ credentials }) => {
     const [error, setError] = useState(null);
     const [hasMore, setHasMore] = useState(true);
     const perPage = 10;
+    const [loadingStates, setLoadingStates] = useState({});
 
     const fetchTranscriptions = async () => {
         try {
@@ -283,9 +284,9 @@ const TranscriptionList = ({ credentials }) => {
                                     className="play-button" 
                                     onClick={() => handlePlay(transcription.id)}
                                     title="Play audio"
-                                    disabled={transcription.isPlaying}
+                                    disabled={loadingStates[transcription.id]}
                                 >
-                                    {transcription.isPlaying ? 'Playing...' : <FaPlay />}
+                                    {loadingStates[transcription.id] ? 'Playing...' : <FaPlay />}
                                 </button>
                                 <button 
                                     className="delete-button" 

@@ -16,19 +16,29 @@ function App() {
   const [isRecording, setIsRecording] = useState(false);
   const [transcript, setTranscript] = useState('');
   const [error, setError] = useState('');
-  const [sessionId] = useState(uuidv4());
+  const [sessionId, setSessionId] = useState(uuidv4());
+  const [recordingDuration, setRecordingDuration] = useState(0);
 
   // Refs to hold instances that shouldn't trigger re-renders on change
   const mediaRecorderRef = useRef(null);
   const audioStreamRef = useRef(null);
   const audioChunksRef = useRef([]);
+  const recordingStartTimeRef = useRef(null);
+  const durationIntervalRef = useRef(null);
 
   // --- Media Recording Logic ---
   const startRecording = async () => {
     if (isRecording || !isLoggedIn) return;
+    
+    // Generate a new session ID for each recording
+    const newSessionId = uuidv4();
+    setSessionId(newSessionId);
+    
     setError('');
     setTranscript(''); // Clear previous transcript
     audioChunksRef.current = []; // Clear chunks
+    setRecordingDuration(0);
+    recordingStartTimeRef.current = Date.now();
 
     try {
       // 1. Get audio stream
@@ -45,7 +55,7 @@ function App() {
         webSocketRef.current = null;
       }
 
-      const ws = new WebSocket(`${BACKEND_WS_URL}/${sessionId}`);
+      const ws = new WebSocket(`${BACKEND_WS_URL}/${newSessionId}`);
       webSocketRef.current = ws;
       
       ws.onopen = () => {
@@ -95,18 +105,30 @@ function App() {
 
       // 5. Handle recording stop
       recorder.onstop = () => {
-        console.log('MediaRecorder stopped.');
+        console.log('Media Recorder stopped.');
         if (audioStreamRef.current) {
           audioStreamRef.current.getTracks().forEach(track => track.stop());
           audioStreamRef.current = null;
         }
         setIsRecording(false);
+        
+        // Clear intervals
+        if (durationIntervalRef.current) {
+          clearInterval(durationIntervalRef.current);
+          durationIntervalRef.current = null;
+        }
       };
 
       // 6. Start recording with timeslice
       recorder.start(TIMESLICE_MS);
       setIsRecording(true);
       console.log('Recording started...');
+      
+      // 7. Set up duration tracking
+      durationIntervalRef.current = setInterval(() => {
+        const elapsed = Math.floor((Date.now() - recordingStartTimeRef.current) / 1000);
+        setRecordingDuration(elapsed);
+      }, 1000);
 
     } catch (err) {
       console.error('Error starting recording:', err);
@@ -117,13 +139,45 @@ function App() {
         audioStreamRef.current = null;
       }
       setIsRecording(false);
+      
+      // Clear intervals
+      if (durationIntervalRef.current) {
+        clearInterval(durationIntervalRef.current);
+      }
     }
   };
 
   const stopRecording = () => {
     if (!isRecording || !mediaRecorderRef.current) return;
     console.log('Stopping recording...');
-    mediaRecorderRef.current.stop(); // This will trigger onstop handler
+    
+    // Stop the media recorder
+    if (mediaRecorderRef.current.state === 'recording') {
+      mediaRecorderRef.current.stop();
+    }
+    
+    // Close WebSocket connection after a short delay to ensure all data is sent
+    setTimeout(() => {
+      if (webSocketRef.current) {
+        webSocketRef.current.close();
+        webSocketRef.current = null;
+      }
+      
+      // Ensure all resources are properly cleaned up
+      if (audioStreamRef.current) {
+        audioStreamRef.current.getTracks().forEach(track => track.stop());
+        audioStreamRef.current = null;
+      }
+      
+      // Clear intervals
+      if (durationIntervalRef.current) {
+        clearInterval(durationIntervalRef.current);
+        durationIntervalRef.current = null;
+      }
+      
+      // Reset recording state
+      setIsRecording(false);
+    }, 1000);
   };
 
   // --- Cleanup Effect ---
@@ -137,8 +191,21 @@ function App() {
       if (audioStreamRef.current) {
         audioStreamRef.current.getTracks().forEach(track => track.stop());
       }
+      
+      // Clear intervals
+      if (durationIntervalRef.current) {
+        clearInterval(durationIntervalRef.current);
+      }
     };
   }, []); // Empty dependency array means run only on mount and unmount
+
+  // Format duration for display
+  const formatDuration = (seconds) => {
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const secs = seconds % 60;
+    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
 
   if (!isLoggedIn) {
     return <Login />;
@@ -158,6 +225,7 @@ function App() {
           {isRecording ? 'Stop Recording' : 'Start Recording'}
         </button>
         <p>Status: {isRecording ? 'Recording...' : 'Idle'}</p>
+        {isRecording && <p>Duration: {formatDuration(recordingDuration)}</p>}
         {error && <p style={{ color: 'red' }}>Error: {error}</p>}
         <div className="transcript-container">
           <h2>Transcript:</h2>
