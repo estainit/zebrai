@@ -277,4 +277,83 @@ input[type="checkbox"] {
     .progress-container {
         width: 100%;
     }
+}
+
+.pagination-controls {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 20px 0;
+    gap: 10px;
+}
+
+.pagination-button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background-color: #f0f0f0;
+    border: 1px solid #ddd;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    color: #333;
+    padding: 0;
+}
+
+.pagination-button svg {
+    width: 20px;
+    height: 20px;
+    display: block;
+}
+
+.pagination-button:hover:not(:disabled) {
+    background-color: #e0e0e0;
+    transform: scale(1.05);
+}
+
+.pagination-button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.pagination-controls span {
+    margin: 0 10px;
+    font-size: 14px;
+    color: #666;
+}
+
+.per-page-container {
+    display: flex;
+    align-items: center;
+    margin-left: 15px;
+    gap: 8px;
+}
+
+.per-page-container label {
+    font-size: 14px;
+    color: #666;
+    white-space: nowrap;
+}
+
+.per-page-select {
+    padding: 6px 10px;
+    border-radius: 4px;
+    border: 1px solid #ddd;
+    background-color: #fff;
+    font-size: 14px;
+    color: #333;
+    cursor: pointer;
+    transition: border-color 0.2s;
+}
+
+.per-page-select:hover {
+    border-color: #aaa;
+}
+
+.per-page-select:focus {
+    outline: none;
+    border-color: #4caf50;
+    box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.2);
 } 

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import './TranscriptionList.css';
 import { FaPlay, FaPause, FaStop, FaTrash, FaSync } from 'react-icons/fa';
+import { MdFirstPage, MdLastPage, MdNavigateBefore, MdNavigateNext } from 'react-icons/md';
 
 const TranscriptionList = ({ credentials }) => {
     const [transcriptions, setTranscriptions] = useState([]);
@@ -10,7 +11,7 @@ const TranscriptionList = ({ credentials }) => {
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState('');
     const [hasMore, setHasMore] = useState(true);
-    const perPage = 10;
+    const [perPage, setPerPage] = useState(10);
     const [loadingStates, setLoadingStates] = useState({});
     const [playingStates, setPlayingStates] = useState({});
     const [pausedStates, setPausedStates] = useState({});
@@ -154,9 +155,15 @@ const TranscriptionList = ({ credentials }) => {
     const handleNextPage = () => handlePageChange(currentPage + 1);
     const handleLastPage = () => handlePageChange(totalPages);
 
+    const handlePerPageChange = (e) => {
+        const newPerPage = parseInt(e.target.value, 10);
+        setPerPage(newPerPage);
+        setCurrentPage(1); // Reset to first page when changing per page
+    };
+
     useEffect(() => {
         fetchTranscriptions();
-    }, [currentPage, credentials]);
+    }, [currentPage, perPage, credentials]);
 
     const handleSelectAll = (e) => {
         if (e.target.checked) {
@@ -420,28 +427,51 @@ const TranscriptionList = ({ credentials }) => {
                 <button 
                     onClick={handleFirstPage}
                     disabled={currentPage === 1}
+                    className="pagination-button"
+                    title="First Page"
                 >
-                    First
+                    <MdFirstPage size={20} />
                 </button>
                 <button 
                     onClick={handlePrevPage}
                     disabled={currentPage === 1}
+                    className="pagination-button"
+                    title="Previous Page"
                 >
-                    Previous
+                    <MdNavigateBefore size={20} />
                 </button>
                 <span>Page {currentPage} of {totalPages}</span>
                 <button 
                     onClick={handleNextPage}
                     disabled={currentPage === totalPages}
+                    className="pagination-button"
+                    title="Next Page"
                 >
-                    Next
+                    <MdNavigateNext size={20} />
                 </button>
                 <button 
                     onClick={handleLastPage}
                     disabled={currentPage === totalPages}
+                    className="pagination-button"
+                    title="Last Page"
                 >
-                    Last
+                    <MdLastPage size={20} />
                 </button>
+                <div className="per-page-container">
+                    <label htmlFor="per-page">Results per page:</label>
+                    <select 
+                        id="per-page" 
+                        value={perPage} 
+                        onChange={handlePerPageChange}
+                        className="per-page-select"
+                    >
+                        <option value={5}>5</option>
+                        <option value={10}>10</option>
+                        <option value={20}>20</option>
+                        <option value={50}>50</option>
+                        <option value={100}>100</option>
+                    </select>
+                </div>
             </div>
             <table className="transcription-table">
                 <thead>
