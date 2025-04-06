@@ -22,7 +22,7 @@ from jwt.exceptions import InvalidTokenError
 import io
 
 from database import engine, get_db_session
-from models import transcription_chunks, users, create_tables
+from models import transcription_chunks, users, create_tables, User
 
 # --- Configuration & Setup ---
 load_dotenv()
@@ -340,6 +340,7 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str, db: AsyncSes
                         # Save to database as a single record
                         insert_query = transcription_chunks.insert().values(
                             session_id=session_id,
+                            user_id=user.id,
                             audio_chunk=complete_audio,
                             transcript=None  # Will be updated after transcription
                         )
@@ -372,6 +373,7 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str, db: AsyncSes
             # Save to database as a single record
             insert_query = transcription_chunks.insert().values(
                 session_id=session_id,
+                user_id=user.id,
                 audio_chunk=complete_audio,
                 transcript=None  # Will be updated after transcription
             )
@@ -401,60 +403,89 @@ async def read_root():
 @app.get("/api/transcriptions")
 async def get_transcriptions(
     page: int = 1,
-    per_page: int = 10,  # Changed default to 10 to match frontend
+    per_page: int = 10,
+    time_filter: str = "all",
     db: AsyncSession = Depends(get_db_session),
-    user = Depends(verify_token)  # Use token verification instead of basic auth
+    current_user = Depends(verify_token)
 ):
-    """Get paginated transcription chunks."""
-    try:
-        offset = (page - 1) * per_page
-        logger.info(f"Fetching transcriptions with offset={offset}, per_page={per_page}")
-        
-        # Get total count
-        count_query = select(func.count()).select_from(transcription_chunks)
-        total_count = await db.execute(count_query)
-        total_count = total_count.scalar()
-        logger.info(f"Total count of transcriptions: {total_count}")
-        
-        # Get paginated records ordered by ID in descending order
-        query = select(transcription_chunks).order_by(transcription_chunks.c.id.desc()).offset(offset).limit(per_page)
-        result = await db.execute(query)
-        records = result.fetchall()
-        logger.info(f"Retrieved {len(records)} records")
-        
-        # Format response with row numbers
-        transcriptions = [
-            {
-                "id": record.id,
-                "transcript": record.transcript,
-                "file_size": format_file_size(len(record.audio_chunk)) if record.audio_chunk else "0 B",
-                "row_number": offset + index + 1  # Row number starts from 1 and increases
-            }
-            for index, record in enumerate(records)
-        ]
-        print(f".......Transcriptions: {transcriptions}")
-        print(f".......Total count: {total_count}")
-        print(f".......Page: {page}")
-        print(f".......Per page: {per_page}")
-        print(f".......Total pages: {(total_count + per_page - 1) // per_page}")
-
-        response = {
-            "items": transcriptions,
-            "total": total_count,
-            "page": page,
-            "per_page": per_page,
-            "total_pages": (total_count + per_page - 1) // per_page,
-            "has_more": offset + per_page < total_count
-        }
-        logger.info(f"Final response: {response}")
-        return response
+    """
+    Get paginated transcriptions for the current user with optional time filtering.
     
-    except Exception as e:
-        logger.error(f"Error fetching transcriptions: {e}")
-        logger.error(f"Error type: {type(e)}")
-        import traceback
-        logger.error(f"Traceback: {traceback.format_exc()}")
-        raise HTTPException(status_code=500, detail=str(e))
+    Args:
+        page: Page number (1-based)
+        per_page: Number of items per page
+        time_filter: Filter by time period ('all', 'today', 'week', 'month')
+        db: Database session
+        current_user: Current authenticated user
+        
+    Returns:
+        Paginated transcriptions with metadata
+    """
+    # Calculate offset
+    offset = (page - 1) * per_page
+    
+    # Base query
+    query = select(transcription_chunks)
+    
+    # Check if user_id column exists
+    try:
+        # Try to filter by user_id if the column exists
+        query = query.where(transcription_chunks.c.user_id == current_user.id)
+    except AttributeError:
+        # If user_id column doesn't exist, return all transcriptions (for backward compatibility)
+        logger.warning("user_id column not found in transcription_chunks table. Returning all transcriptions.")
+    
+    # Apply time filter
+    now = datetime.utcnow()
+    if time_filter == "today":
+        # Last 24 hours
+        start_time = now - timedelta(days=1)
+        query = query.where(transcription_chunks.c.created_at >= start_time)
+    elif time_filter == "week":
+        # Last 7 days
+        start_time = now - timedelta(days=7)
+        query = query.where(transcription_chunks.c.created_at >= start_time)
+    elif time_filter == "month":
+        # Last 30 days
+        start_time = now - timedelta(days=30)
+        query = query.where(transcription_chunks.c.created_at >= start_time)
+    
+    # Get total count after applying filters
+    count_query = select(func.count()).select_from(query.subquery())
+    total_count_result = await db.execute(count_query)
+    total_count = total_count_result.scalar()
+    
+    # Calculate total pages
+    total_pages = (total_count + per_page - 1) // per_page
+    
+    # Get paginated results
+    query = query.order_by(transcription_chunks.c.id.desc()).offset(offset).limit(per_page)
+    result = await db.execute(query)
+    transcriptions = result.fetchall()
+    
+    # Calculate row numbers (1-based)
+    start_row = offset + 1
+    items = []
+    for i, transcription in enumerate(transcriptions):
+        items.append({
+            "id": transcription.id,
+            "transcript": transcription.transcript,
+            "file_size": format_file_size(len(transcription.audio_chunk)) if transcription.audio_chunk else "0 B",
+            "created_at": transcription.created_at.isoformat() if transcription.created_at else None,
+            "row_number": start_row + i
+        })
+    
+    # Prepare response
+    response = {
+        "items": items,
+        "total": total_count,
+        "page": page,
+        "per_page": per_page,
+        "total_pages": total_pages,
+        "has_more": page < total_pages
+    }
+    
+    return response
 
 # Helper function to format file size
 def format_file_size(size_bytes):

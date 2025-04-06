@@ -12,6 +12,7 @@ const TranscriptionList = ({ credentials }) => {
     const [error, setError] = useState('');
     const [hasMore, setHasMore] = useState(true);
     const [perPage, setPerPage] = useState(10);
+    const [timeFilter, setTimeFilter] = useState('all');
     const [loadingStates, setLoadingStates] = useState({});
     const [playingStates, setPlayingStates] = useState({});
     const [pausedStates, setPausedStates] = useState({});
@@ -118,7 +119,7 @@ const TranscriptionList = ({ credentials }) => {
         try {
             setIsLoading(true);
             const response = await fetch(
-                `/api/transcriptions?page=${currentPage}&per_page=${perPage}`,
+                `/api/transcriptions?page=${currentPage}&per_page=${perPage}&time_filter=${timeFilter}`,
                 {
                     headers: {
                         'Authorization': `Bearer ${credentials}`,
@@ -161,9 +162,15 @@ const TranscriptionList = ({ credentials }) => {
         setCurrentPage(1); // Reset to first page when changing per page
     };
 
+    const handleTimeFilterChange = (e) => {
+        const newTimeFilter = e.target.value;
+        setTimeFilter(newTimeFilter);
+        setCurrentPage(1); // Reset to first page when changing time filter
+    };
+
     useEffect(() => {
         fetchTranscriptions();
-    }, [currentPage, perPage, credentials]);
+    }, [currentPage, perPage, timeFilter, credentials]);
 
     const handleSelectAll = (e) => {
         if (e.target.checked) {
@@ -470,6 +477,20 @@ const TranscriptionList = ({ credentials }) => {
                         <option value={20}>20</option>
                         <option value={50}>50</option>
                         <option value={100}>100</option>
+                    </select>
+                </div>
+                <div className="time-filter-container">
+                    <label htmlFor="time-filter">Time period:</label>
+                    <select 
+                        id="time-filter" 
+                        value={timeFilter} 
+                        onChange={handleTimeFilterChange}
+                        className="time-filter-select"
+                    >
+                        <option value="all">All time</option>
+                        <option value="today">Last 24 hours</option>
+                        <option value="week">Last 7 days</option>
+                        <option value="month">Last 30 days</option>
                     </select>
                 </div>
             </div>
