@@ -2,6 +2,7 @@
 CREATE TABLE IF NOT EXISTS transcription_chunks (
     id SERIAL PRIMARY KEY,
     session_id VARCHAR(100) NOT NULL,
+    user_id INTEGER NOT NULL DEFAULT 1
     audio_chunk BYTEA NOT NULL,
     transcript TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
