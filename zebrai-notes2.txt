@@ -23,3 +23,8 @@ install what backend needs (inside venv):
 
 chnage password:
     curl -X POST http://localhost:8000/api/reset-password -H "Content-Type: application/json" -d '{"username": "admin", "new_password": "admin"}'
+
+
+frontend:
+    run with apply build memory space:
+        NODE_OPTIONS="--max_old_space_size=4096" npm run build
