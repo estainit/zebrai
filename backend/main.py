@@ -310,8 +310,6 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str, db: AsyncSes
             # Initialize variables for audio chunking
             audio_chunks = []
             chunk_counter = 0
-            transcription_interval = 10  # Process transcription every 10 chunks
-            min_chunks_for_transcription = 5  # Minimum chunks needed for transcription
             
             # Main WebSocket loop
             while True:
@@ -322,7 +320,7 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str, db: AsyncSes
                     if not audio_data:
                         continue
 
-                    # Add to chunks
+                    # Add to chunks for saving
                     audio_chunks.append(audio_data)
                     chunk_counter += 1
                     
@@ -330,46 +328,41 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str, db: AsyncSes
                     async with aiofiles.open(temp_file_path, "ab") as temp_file:
                         await temp_file.write(audio_data)
                     
-                    # Process transcription if we have enough chunks
-                    if chunk_counter >= min_chunks_for_transcription and chunk_counter % transcription_interval == 0:
-                        try:
-                            # Create a BytesIO object from the accumulated audio data
-                            audio_io = io.BytesIO()
-                            for chunk in audio_chunks:
-                                audio_io.write(chunk)
-                            audio_io.seek(0)
-                            
-                            # Transcribe the audio
-                            transcript = await transcribe_audio(audio_io)
-                            
-                            if transcript:
-                                # Send transcript back to client immediately
-                                await websocket.send_json({
-                                    "type": "transcript",
-                                    "text": transcript
-                                })
-                                
-                                # Save to database with transcript
-                                insert_query = transcription_chunks.insert().values(
-                                    session_id=session_id,
-                                    user_id=user.id,
-                                    audio_chunk=b''.join(audio_chunks),  # Join all chunks
-                                    transcript=transcript
-                                )
-                                await db.execute(insert_query)
-                                await db.commit()
-                                
-                                # Clear chunks after saving
-                                audio_chunks = []
-                                logger.info(f"Saved transcription for session {session_id}")
-                        except Exception as e:
-                            logger.error(f"Transcription error: {e}")
-                            # Continue recording despite transcription errors
-                            # Send error to client but don't stop recording
+                    # Process transcription immediately for each chunk
+                    try:
+                        # Create a BytesIO object from the current audio chunk
+                        audio_io = io.BytesIO(audio_data)
+                        audio_io.seek(0)
+                        
+                        # Transcribe the audio chunk
+                        transcript = await transcribe_audio(audio_io)
+                        
+                        if transcript:
+                            # Send transcript back to client immediately
                             await websocket.send_json({
-                                "type": "error",
-                                "message": f"Transcription error: {str(e)}"
+                                "type": "transcript",
+                                "text": transcript
                             })
+                            
+                            # Save to database with transcript
+                            insert_query = transcription_chunks.insert().values(
+                                session_id=session_id,
+                                user_id=user.id,
+                                audio_chunk=audio_data,  # Save just this chunk
+                                transcript=transcript
+                            )
+                            await db.execute(insert_query)
+                            await db.commit()
+                            
+                            logger.info(f"Saved transcription for chunk {chunk_counter} in session {session_id}")
+                    except Exception as e:
+                        logger.error(f"Transcription error for chunk {chunk_counter}: {e}")
+                        # Continue recording despite transcription errors
+                        # Send error to client but don't stop recording
+                        await websocket.send_json({
+                            "type": "error",
+                            "message": f"Transcription error: {str(e)}"
+                        })
 
                 except WebSocketDisconnect:
                     break

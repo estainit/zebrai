@@ -71,7 +71,15 @@ function App() {
           
           if (message.type === 'transcript' && message.text) {
             console.log('Received transcript:', message.text);
-            setTranscript((prev) => prev + message.text + ' ');
+            // Update transcript with proper spacing
+            setTranscript((prev) => {
+              // If this is the first transcript, don't add a space
+              if (!prev) return message.text;
+              // Otherwise, add a space only if the previous text doesn't end with punctuation
+              const lastChar = prev.trim().slice(-1);
+              const needsSpace = !['.', '!', '?', ','].includes(lastChar);
+              return prev + (needsSpace ? ' ' : '') + message.text;
+            });
           } else if (message.type === 'error') {
             console.error('Received error from backend:', message.message);
             setError(`Backend Error: ${message.message}`);
@@ -231,7 +239,18 @@ function App() {
         {error && <p style={{ color: 'red' }}>Error: {error}</p>}
         <div className="transcript-container">
           <h2>Transcript:</h2>
-          <p>{transcript || '...'}</p>
+          <div className="transcript-text" style={{ 
+            whiteSpace: 'pre-wrap', 
+            wordBreak: 'break-word',
+            maxHeight: '300px',
+            overflowY: 'auto',
+            padding: '10px',
+            border: '1px solid #ccc',
+            borderRadius: '4px',
+            backgroundColor: '#f9f9f9'
+          }}>
+            {transcript || '...'}
+          </div>
         </div>
         
         {/* Add the TranscriptionList component */}
