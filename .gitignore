@@ -3,6 +3,7 @@ __pycache__/*
 *.pyc 
 myvenv
 
+backend/.env
 backend/myvenv
 backend/*.pyc
 backend/__pycache__/*
