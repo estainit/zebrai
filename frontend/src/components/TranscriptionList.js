@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import './TranscriptionList.css';
-import { FaPlay, FaTrash } from 'react-icons/fa';
+import { FaPlay, FaTrash, FaSync } from 'react-icons/fa';
 
 const TranscriptionList = ({ credentials }) => {
     const [transcriptions, setTranscriptions] = useState([]);
@@ -211,6 +211,12 @@ const TranscriptionList = ({ credentials }) => {
         }
     };
 
+    const handleRefresh = () => {
+        setCurrentPage(1);
+        setTranscriptions([]);
+        fetchTranscriptions();
+    };
+
     if (isLoading) {
         return <div className="loading">Loading transcriptions...</div>;
     }
@@ -239,13 +245,22 @@ const TranscriptionList = ({ credentials }) => {
                     />
                     <label htmlFor="select-all">Select All</label>
                 </div>
-                <button 
-                    className="delete-selected-button" 
-                    onClick={handleDeleteSelected}
-                    disabled={selectedIds.length === 0}
-                >
-                    <FaTrash /> Delete Selected
-                </button>
+                <div className="action-buttons">
+                    <button 
+                        className="refresh-button" 
+                        onClick={handleRefresh}
+                        title="Refresh list"
+                    >
+                        <FaSync /> Refresh
+                    </button>
+                    <button 
+                        className="delete-selected-button" 
+                        onClick={handleDeleteSelected}
+                        disabled={selectedIds.length === 0}
+                    >
+                        <FaTrash /> Delete Selected
+                    </button>
+                </div>
             </div>
             <table className="transcription-table">
                 <thead>
