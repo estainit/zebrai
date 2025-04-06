@@ -64,11 +64,13 @@ async def get_transcriptions(
     result = await db.execute(query)
     items = result.fetchall()
     
-    # Format file sizes
+    # Format file sizes and add row numbers
     formatted_items = []
-    for item in items:
+    for index, item in enumerate(items):
         formatted_item = dict(item)
         formatted_item["file_size"] = format_file_size(len(item.audio_chunk))
+        # Add row number that continues across pages
+        formatted_item["row_number"] = total_count - offset - index
         formatted_items.append(formatted_item)
     
     return {

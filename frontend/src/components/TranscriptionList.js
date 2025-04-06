@@ -131,18 +131,8 @@ const TranscriptionList = ({ credentials }) => {
             }
             
             const data = await response.json();
-            // Create a Map to ensure unique entries by ID
-            const uniqueTranscriptions = new Map();
-            
-            // Add existing transcriptions to the map
-            transcriptions.forEach(t => uniqueTranscriptions.set(t.id, t));
-            
-            // Add new transcriptions to the map
-            data.items.forEach(t => uniqueTranscriptions.set(t.id, t));
-            
-            // Convert map values back to array
-            setTranscriptions(Array.from(uniqueTranscriptions.values()));
-            setTotalPages(Math.ceil(data.total / perPage));
+            setTranscriptions(data.items);
+            setTotalPages(data.total_pages);
             setHasMore(data.has_more);
             setError(null);
         } catch (err) {
@@ -152,6 +142,17 @@ const TranscriptionList = ({ credentials }) => {
             setIsLoading(false);
         }
     };
+
+    const handlePageChange = (newPage) => {
+        if (newPage >= 1 && newPage <= totalPages) {
+            setCurrentPage(newPage);
+        }
+    };
+
+    const handleFirstPage = () => handlePageChange(1);
+    const handlePrevPage = () => handlePageChange(currentPage - 1);
+    const handleNextPage = () => handlePageChange(currentPage + 1);
+    const handleLastPage = () => handlePageChange(totalPages);
 
     useEffect(() => {
         fetchTranscriptions();
@@ -415,10 +416,38 @@ const TranscriptionList = ({ credentials }) => {
                     </button>
                 </div>
             </div>
+            <div className="pagination-controls">
+                <button 
+                    onClick={handleFirstPage}
+                    disabled={currentPage === 1}
+                >
+                    First
+                </button>
+                <button 
+                    onClick={handlePrevPage}
+                    disabled={currentPage === 1}
+                >
+                    Previous
+                </button>
+                <span>Page {currentPage} of {totalPages}</span>
+                <button 
+                    onClick={handleNextPage}
+                    disabled={currentPage === totalPages}
+                >
+                    Next
+                </button>
+                <button 
+                    onClick={handleLastPage}
+                    disabled={currentPage === totalPages}
+                >
+                    Last
+                </button>
+            </div>
             <table className="transcription-table">
                 <thead>
                     <tr>
                         <th>Select</th>
+                        <th>#</th>
                         <th>ID</th>
                         <th>Transcript</th>
                         <th>Size</th>
@@ -435,6 +464,7 @@ const TranscriptionList = ({ credentials }) => {
                                     onChange={() => handleSelect(transcription.id)}
                                 />
                             </td>
+                            <td>{transcription.row_number}</td>
                             <td>{transcription.id}</td>
                             <td>{transcription.transcript || 'No transcript available'}</td>
                             <td>{transcription.file_size || '0 B'}</td>

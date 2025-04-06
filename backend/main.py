@@ -254,8 +254,8 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str, db: AsyncSes
             await websocket.close(code=4001, reason="No token provided")
             return
             
+        # Verify token
         try:
-            # Verify token
             payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
             username = payload.get("sub")
             if not username:
@@ -291,6 +291,7 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str, db: AsyncSes
             async with aiofiles.open(temp_file_path, "w") as temp_file:
                 await temp_file.write("")
             
+            # Main WebSocket loop
             while True:
                 try:
                     # Receive audio data
@@ -300,40 +301,33 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str, db: AsyncSes
                     if not audio_data:
                         continue
 
-                    try:
-                        # Store the chunk
-                        audio_chunks.append(audio_data)
-                        chunk_counter += 1
-                        
-                        # Save the raw audio data to the file
-                        async with aiofiles.open(temp_file_path, "ab") as temp_file:
-                            await temp_file.write(audio_data)
+                    # Store the chunk
+                    audio_chunks.append(audio_data)
+                    chunk_counter += 1
+                    
+                    # Save the raw audio data to the file
+                    async with aiofiles.open(temp_file_path, "ab") as temp_file:
+                        await temp_file.write(audio_data)
 
-                        # Transcribe if enabled
-                        if do_transcript:
-                            try:
-                                # Create a BytesIO object from the audio data
-                                audio_io = io.BytesIO(audio_data)
-                                
-                                # Transcribe the audio
-                                transcript = await transcribe_audio(audio_io)
-                                
-                                if transcript:
-                                    # Send transcript back to client
-                                    await websocket.send_json({
-                                        "transcript": transcript
-                                    })
-                            except Exception as e:
-                                logger.error(f"Transcription error: {e}")
+                    # Transcribe if enabled
+                    if do_transcript:
+                        try:
+                            # Create a BytesIO object from the audio data
+                            audio_io = io.BytesIO(audio_data)
+                            
+                            # Transcribe the audio
+                            transcript = await transcribe_audio(audio_io)
+                            
+                            if transcript:
+                                # Send transcript back to client
                                 await websocket.send_json({
-                                    "error": f"Transcription failed: {str(e)}"
+                                    "transcript": transcript
                                 })
-
-                    except Exception as e:
-                        logger.error(f"Error processing audio chunk: {e}")
-                        await websocket.send_json({
-                            "error": f"Failed to process audio chunk: {str(e)}"
-                        })
+                        except Exception as e:
+                            logger.error(f"Transcription error: {e}")
+                            await websocket.send_json({
+                                "error": f"Transcription failed: {str(e)}"
+                            })
 
                 except WebSocketDisconnect:
                     logger.info(f"WebSocket disconnected for session: {session_id}")
@@ -407,7 +401,7 @@ async def read_root():
 @app.get("/api/transcriptions")
 async def get_transcriptions(
     page: int = 1,
-    per_page: int = 20,
+    per_page: int = 10,  # Changed default to 10 to match frontend
     db: AsyncSession = Depends(get_db_session),
     user = Depends(verify_token)  # Use token verification instead of basic auth
 ):
@@ -423,19 +417,20 @@ async def get_transcriptions(
         logger.info(f"Total count of transcriptions: {total_count}")
         
         # Get paginated records ordered by ID in descending order
-        query = select(transcription_chunks).order_by(transcription_chunks.c.id.asc()).offset(offset).limit(per_page)
+        query = select(transcription_chunks).order_by(transcription_chunks.c.id.desc()).offset(offset).limit(per_page)
         result = await db.execute(query)
         records = result.fetchall()
         logger.info(f"Retrieved {len(records)} records")
         
-        # Format response
+        # Format response with row numbers
         transcriptions = [
             {
                 "id": record.id,
                 "transcript": record.transcript,
-                "file_size": format_file_size(len(record.audio_chunk)) if record.audio_chunk else "0 B"
+                "file_size": format_file_size(len(record.audio_chunk)) if record.audio_chunk else "0 B",
+                "row_number": offset + index + 1  # Row number starts from 1 and increases
             }
-            for record in records
+            for index, record in enumerate(records)
         ]
         print(f".......Transcriptions: {transcriptions}")
         print(f".......Total count: {total_count}")
@@ -448,7 +443,8 @@ async def get_transcriptions(
             "total": total_count,
             "page": page,
             "per_page": per_page,
-            "total_pages": (total_count + per_page - 1) // per_page
+            "total_pages": (total_count + per_page - 1) // per_page,
+            "has_more": offset + per_page < total_count
         }
         logger.info(f"Final response: {response}")
         return response
