@@ -126,32 +126,11 @@ const TranscriptionList = ({ credentials }) => {
                 prev.map(t => t.id === id ? {...t, isPlaying: true} : t)
             );
             
-            const response = await fetch(`/api/transcriptions/${id}/audio`, {
-                headers: {
-                    'Authorization': `Bearer ${credentials}`
-                }
-            });
-
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-
-            const audioBlob = await response.blob();
-            
-            // Create a WebM blob with proper MIME type and codec
-            const webmBlob = new Blob([audioBlob], { 
-                type: 'audio/webm;codecs=opus'
-            });
-            
-            // Create object URL
-            const audioUrl = URL.createObjectURL(webmBlob);
-            
-            // Create and configure audio element
+            // Create a new audio element
             const audio = new Audio();
             
-            // Set up event listeners before setting src
+            // Set up event listeners
             const cleanup = () => {
-                URL.revokeObjectURL(audioUrl);
                 audio.removeEventListener('ended', handleEnded);
                 audio.removeEventListener('error', handleError);
                 audio.removeEventListener('loadeddata', handleLoadedData);
@@ -183,7 +162,21 @@ const TranscriptionList = ({ credentials }) => {
             audio.addEventListener('error', handleError);
             audio.addEventListener('loadeddata', handleLoadedData);
             
-            // Set source after adding listeners
+            // Fetch the audio data with proper authorization
+            const response = await fetch(`/api/transcriptions/${id}/audio`, {
+                headers: {
+                    'Authorization': `Bearer ${credentials}`
+                }
+            });
+            
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            
+            const audioBlob = await response.blob();
+            const audioUrl = URL.createObjectURL(audioBlob);
+            
+            // Set the source to the blob URL
             audio.src = audioUrl;
             
             // Play the audio

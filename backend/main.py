@@ -281,7 +281,6 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str, db: AsyncSes
             
             # Create a temporary file for this session
             temp_file_path = os.path.join(TEMP_AUDIO_DIR, f"{session_id}.webm")
-            is_first_chunk = True
             audio_chunks = []
             
             while True:
@@ -295,41 +294,9 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str, db: AsyncSes
                     # Store the chunk
                     audio_chunks.append(audio_data)
                     
-                    # For the first chunk, create a new file with WebM header
-                    if is_first_chunk:
-                        # Add WebM header
-                        webm_header = bytes([
-                            0x1A, 0x45, 0xDF, 0xA3,  # EBML Header
-                            0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x20,  # EBML Version
-                            0x42, 0x86, 0x81, 0x01, 0x42, 0xF7, 0x81, 0x01,  # DocType
-                            0x42, 0xF2, 0x81, 0x04, 0x42, 0xF3, 0x81, 0x08,  # DocTypeVersion
-                            0x42, 0x82, 0x84, 0x77, 0x65, 0x62, 0x6D, 0x42, 0x87, 0x81, 0x02,  # DocTypeReadVersion
-                            0x42, 0x85, 0x81, 0x02,  # DocTypeVersion
-                            0x18, 0x53, 0x80, 0x67,  # Segment
-                            0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,  # Segment Size
-                            0x15, 0x49, 0xA9, 0x66,  # Info
-                            0x16, 0x54, 0xAE, 0x6B,  # Tracks
-                            0xAE, 0x8A,  # Track Entry
-                            0xD7, 0x81, 0x01,  # Track Number
-                            0x73, 0xC5, 0x81, 0x01,  # Track Type (Audio)
-                            0x9A, 0x81, 0x01,  # Flag Default
-                            0x86, 0x85, 0x6F, 0x70, 0x75, 0x73,  # Codec ID
-                            0x63, 0xA2, 0x81, 0x01,  # Codec Private
-                            0x9F, 0x81, 0x01,  # Flag Lacing
-                            0x22, 0xB5, 0x9C,  # Track UID
-                            0x83, 0x81, 0x01,  # Track Type
-                            0xE0,  # Cluster
-                            0xE1,  # Timecode
-                            0xA3,  # Simple Block
-                        ])
-                        async with aiofiles.open(temp_file_path, "wb") as temp_file:
-                            await temp_file.write(webm_header)
-                            await temp_file.write(audio_data)
-                        is_first_chunk = False
-                    else:
-                        # Append subsequent chunks
-                        async with aiofiles.open(temp_file_path, "ab") as temp_file:
-                            await temp_file.write(audio_data)
+                    # Save the raw audio data to the file
+                    async with aiofiles.open(temp_file_path, "ab") as temp_file:
+                        await temp_file.write(audio_data)
 
                     # Save to database periodically (every 5 chunks)
                     if len(audio_chunks) % 5 == 0:
@@ -521,9 +488,14 @@ async def get_transcription_audio(
         if not record:
             raise HTTPException(status_code=404, detail="Transcription not found")
         
+        # Return the audio data with proper headers
         return Response(
             content=record.audio_chunk,
-            media_type="audio/webm"
+            media_type="audio/webm;codecs=opus",
+            headers={
+                "Content-Disposition": f"attachment; filename=transcription_{transcription_id}.webm",
+                "Accept-Ranges": "bytes"
+            }
         )
     except Exception as e:
         logger.error(f"Error fetching audio: {e}")
