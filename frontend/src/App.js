@@ -67,12 +67,14 @@ function App() {
       ws.onmessage = (event) => {
         try {
           const message = JSON.parse(event.data);
-          if (message.transcript) {
-            console.log('Received transcript:', message.transcript);
-            setTranscript((prev) => prev + message.transcript + ' ');
-          } else if (message.error) {
-            console.error('Received error from backend:', message.error);
-            setError(`Backend Error: ${message.error}`);
+          console.log('Received WebSocket message:', message);
+          
+          if (message.type === 'transcript' && message.text) {
+            console.log('Received transcript:', message.text);
+            setTranscript((prev) => prev + message.text + ' ');
+          } else if (message.type === 'error') {
+            console.error('Received error from backend:', message.message);
+            setError(`Backend Error: ${message.message}`);
           }
         } catch (e) {
           console.error('Failed to parse message:', event.data, e);

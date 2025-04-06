@@ -206,31 +206,61 @@ async def login(login_data: LoginRequest, db: AsyncSession = Depends(get_db_sess
 # --- Audio Transcription Function ---
 async def transcribe_audio(audio_file):
     """Transcribe audio using OpenAI's Whisper API."""
+    temp_file_path = None
     try:
+        # Log the start of transcription
+        logger.info("Starting audio transcription")
+        
         # Create a temporary file for the audio data
         with tempfile.NamedTemporaryFile(suffix=".webm", delete=False) as temp_file:
-            temp_file.write(audio_file.read())
+            # Read the audio data
+            audio_data = audio_file.read()
+            logger.info(f"Read {len(audio_data)} bytes of audio data")
+            
+            # Validate audio data
+            if not audio_data or len(audio_data) < 100:  # Minimum size check
+                logger.error(f"Audio data too small or empty: {len(audio_data)} bytes")
+                raise ValueError("Audio data too small or empty")
+                
+            # Write the audio data
+            temp_file.write(audio_data)
             temp_file_path = temp_file.name
+            logger.info(f"Created temporary file: {temp_file_path}")
+
+        # Verify the file exists and has content
+        if not os.path.exists(temp_file_path):
+            logger.error("Failed to create temporary audio file")
+            raise ValueError("Failed to create temporary audio file")
+            
+        file_size = os.path.getsize(temp_file_path)
+        logger.info(f"Temporary file size: {file_size} bytes")
+        
+        if file_size < 100:  # Minimum size check
+            logger.error(f"Audio file too small: {file_size} bytes")
+            raise ValueError(f"Audio file too small: {file_size} bytes")
 
         # Open the file for transcription
         with open(temp_file_path, "rb") as audio_file:
+            logger.info("Calling OpenAI Whisper API")
             # Call OpenAI's Whisper API for transcription
             response = await openai.Audio.atranscribe("whisper-1", audio_file)
-            
-            # Clean up the temporary file
-            os.unlink(temp_file_path)
+            logger.info("Received response from OpenAI Whisper API")
             
             # Return the transcribed text
             return response.text
+            
     except Exception as e:
-        logger.error(f"Transcription error: {e}")
+        logger.error(f"Transcription error: {str(e)}")
+        raise ValueError(f"Transcription failed: {str(e)}")
+        
+    finally:
         # Clean up the temporary file if it exists
-        if 'temp_file_path' in locals():
+        if temp_file_path and os.path.exists(temp_file_path):
             try:
                 os.unlink(temp_file_path)
-            except:
-                pass
-        raise e
+                logger.info("Cleaned up temporary file")
+            except Exception as e:
+                logger.error(f"Failed to cleanup temp file: {e}")
 
 # --- WebSocket Connection Management (Simple) ---
 # A more robust manager class is better for production
@@ -239,7 +269,7 @@ active_connections: dict[str, WebSocket] = {}
 # --- WebSocket Endpoint ---
 @app.websocket("/ws/{session_id}")
 async def websocket_endpoint(websocket: WebSocket, session_id: str, db: AsyncSession = Depends(get_db_session)):
-    """Handles WebSocket connections for audio recording. Completely isolated from transcription."""
+    """Handles WebSocket connections for audio recording with real-time transcription."""
     await websocket.accept()
     
     try:
@@ -277,20 +307,69 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str, db: AsyncSes
             # Create a temporary file for this session
             temp_file_path = os.path.join(TEMP_AUDIO_DIR, f"{session_id}.webm")
             
-            # FOCUSED ONLY ON RECORDING
-            # Main WebSocket loop - stripped of all non-recording functionality
+            # Initialize variables for audio chunking
+            audio_chunks = []
+            chunk_counter = 0
+            transcription_interval = 10  # Process transcription every 10 chunks
+            min_chunks_for_transcription = 5  # Minimum chunks needed for transcription
+            
+            # Main WebSocket loop
             while True:
                 try:
-                    # Receive audio data - this is the only operation in the loop
+                    # Receive audio data
                     audio_data = await websocket.receive_bytes()
                     
                     if not audio_data:
                         continue
 
-                    # Immediately save the raw audio data to the file
-                    # No other operations that could potentially fail
+                    # Add to chunks
+                    audio_chunks.append(audio_data)
+                    chunk_counter += 1
+                    
+                    # Save the raw audio data to the file
                     async with aiofiles.open(temp_file_path, "ab") as temp_file:
                         await temp_file.write(audio_data)
+                    
+                    # Process transcription if we have enough chunks
+                    if chunk_counter >= min_chunks_for_transcription and chunk_counter % transcription_interval == 0:
+                        try:
+                            # Create a BytesIO object from the accumulated audio data
+                            audio_io = io.BytesIO()
+                            for chunk in audio_chunks:
+                                audio_io.write(chunk)
+                            audio_io.seek(0)
+                            
+                            # Transcribe the audio
+                            transcript = await transcribe_audio(audio_io)
+                            
+                            if transcript:
+                                # Send transcript back to client immediately
+                                await websocket.send_json({
+                                    "type": "transcript",
+                                    "text": transcript
+                                })
+                                
+                                # Save to database with transcript
+                                insert_query = transcription_chunks.insert().values(
+                                    session_id=session_id,
+                                    user_id=user.id,
+                                    audio_chunk=b''.join(audio_chunks),  # Join all chunks
+                                    transcript=transcript
+                                )
+                                await db.execute(insert_query)
+                                await db.commit()
+                                
+                                # Clear chunks after saving
+                                audio_chunks = []
+                                logger.info(f"Saved transcription for session {session_id}")
+                        except Exception as e:
+                            logger.error(f"Transcription error: {e}")
+                            # Continue recording despite transcription errors
+                            # Send error to client but don't stop recording
+                            await websocket.send_json({
+                                "type": "error",
+                                "message": f"Transcription error: {str(e)}"
+                            })
 
                 except WebSocketDisconnect:
                     break
@@ -306,33 +385,56 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str, db: AsyncSes
                 await websocket.close(code=4002, reason=str(e))
             
     finally:
-        # Save recording on disconnect, but don't let any errors stop the cleanup
+        # Save any remaining audio data on disconnect
         try:
-            if os.path.exists(temp_file_path):
-                async with aiofiles.open(temp_file_path, "rb") as temp_file:
-                    complete_audio = await temp_file.read()
+            if audio_chunks:
+                # Save final chunk to database
+                insert_query = transcription_chunks.insert().values(
+                    session_id=session_id,
+                    user_id=user.id,
+                    audio_chunk=b''.join(audio_chunks),
+                    transcript=None  # No transcript for the final chunk
+                )
+                await db.execute(insert_query)
+                await db.commit()
+                logger.info(f"Saved final recording for session {session_id}")
                 
-                # Save to database
+                # Try to transcribe the final chunk
                 try:
-                    insert_query = transcription_chunks.insert().values(
-                        session_id=session_id,
-                        user_id=user.id,
-                        audio_chunk=complete_audio,
-                        transcript=None
-                    )
-                    await db.execute(insert_query)
-                    await db.commit()
-                    logger.info(f"Saved recording for session {session_id}")
-                except Exception as e:
-                    logger.error(f"Failed to save to database: {e}")
+                    audio_io = io.BytesIO()
+                    for chunk in audio_chunks:
+                        audio_io.write(chunk)
+                    audio_io.seek(0)
                     
-                # Cleanup temp file
-                try:
-                    os.unlink(temp_file_path)
+                    transcript = await transcribe_audio(audio_io)
+                    
+                    if transcript:
+                        # Update the database with the transcript
+                        update_query = (
+                            transcription_chunks.update()
+                            .where(transcription_chunks.c.session_id == session_id)
+                            .values(transcript=transcript)
+                        )
+                        await db.execute(update_query)
+                        await db.commit()
+                        
+                        # Send final transcript to client
+                        await websocket.send_json({
+                            "type": "transcript",
+                            "text": transcript
+                        })
                 except Exception as e:
-                    logger.error(f"Failed to cleanup temp file: {e}")
+                    logger.error(f"Final transcription error: {e}")
+                    
         except Exception as e:
             logger.error(f"Error in cleanup: {e}")
+        
+        # Cleanup temp file
+        try:
+            if os.path.exists(temp_file_path):
+                os.unlink(temp_file_path)
+        except Exception as e:
+            logger.error(f"Failed to cleanup temp file: {e}")
         
         if session_id in active_connections:
             del active_connections[session_id]
