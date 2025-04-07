@@ -8,6 +8,7 @@ export const AuthProvider = ({ children }) => {
   const [username, setUsername] = useState(null);
   const [error, setError] = useState('');
   const webSocketRef = useRef(null);
+  const [sessionExpired, setSessionExpired] = useState(false);
 
   // Check for stored credentials on mount
   useEffect(() => {
@@ -59,6 +60,7 @@ export const AuthProvider = ({ children }) => {
         setUsername(data.username);
         setIsLoggedIn(true);
         setError('');
+        setSessionExpired(false);
         
         return true;
       }
@@ -80,8 +82,16 @@ export const AuthProvider = ({ children }) => {
     setUsername(null);
     setIsLoggedIn(false);
     setError('');
+    setSessionExpired(false);
     localStorage.removeItem('authToken');
     localStorage.removeItem('username');
+  };
+
+  // Handle session expiration
+  const handleSessionExpired = () => {
+    console.log('Session expired, logging out user');
+    setSessionExpired(true);
+    logout();
   };
 
   // Cleanup on unmount
@@ -99,7 +109,9 @@ export const AuthProvider = ({ children }) => {
     login,
     logout,
     setError,
-    webSocketRef
+    webSocketRef,
+    sessionExpired,
+    handleSessionExpired
   };
 
   return (

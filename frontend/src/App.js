@@ -129,7 +129,11 @@ function App() {
             });
           } else if (message.type === 'error') {
             console.error('Received error from backend:', message.message);
-            setError(`Backend Error: ${message.message}`);
+            if (message.message.includes('Session expired') || message.message.includes('Invalid token')) {
+              handleSessionExpired();
+            } else {
+              setError(`Backend Error: ${message.message}`);
+            }
           }
         } catch (e) {
           console.error('Failed to parse message:', event.data, e);
@@ -145,6 +149,7 @@ function App() {
         console.log('WebSocket Disconnected:', event.reason);
         if (event.code === 4001 || event.code === 4002) {
           setError('Authentication failed. Please log in again.');
+          handleSessionExpired();
         }
       };
 

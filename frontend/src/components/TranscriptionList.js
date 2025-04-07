@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import './TranscriptionList.css';
 import { FaPlay, FaPause, FaStop, FaTrash, FaSync } from 'react-icons/fa';
 import { MdFirstPage, MdLastPage, MdNavigateBefore, MdNavigateNext } from 'react-icons/md';
+import { useApi } from '../utils/api';
+import { useAuth } from '../context/AuthContext';
 
 const TranscriptionList = ({ credentials }) => {
     const [transcriptions, setTranscriptions] = useState([]);
@@ -23,6 +25,8 @@ const TranscriptionList = ({ credentials }) => {
     const audioRefs = useRef({});
     const eventHandlersRef = useRef({});
     const audioElements = useRef({});
+    const api = useApi();
+    const { handleSessionExpired } = useAuth();
 
     // Define event handlers using useCallback to prevent recreation on each render
     const handleLoadedData = useCallback((id) => {
@@ -120,14 +124,8 @@ const TranscriptionList = ({ credentials }) => {
     const fetchTranscriptions = async () => {
         try {
             setIsLoading(true);
-            const response = await fetch(
-                `/api/transcriptions?page=${currentPage}&per_page=${perPage}&time_filter=${timeFilter}`,
-                {
-                    headers: {
-                        'Authorization': `Bearer ${credentials}`,
-                        'Accept': 'application/json'
-                    }
-                }
+            const response = await api.get(
+                `/api/transcriptions?page=${currentPage}&per_page=${perPage}&time_filter=${timeFilter}`
             );
             
             if (!response.ok) {
@@ -141,7 +139,11 @@ const TranscriptionList = ({ credentials }) => {
             setError(null);
         } catch (err) {
             console.error('Error fetching transcriptions:', err);
-            setError('Failed to load transcriptions');
+            if (err.message.includes('Session expired')) {
+                handleSessionExpired();
+            } else {
+                setError('Failed to load transcriptions');
+            }
         } finally {
             setIsLoading(false);
         }
@@ -172,7 +174,7 @@ const TranscriptionList = ({ credentials }) => {
 
     useEffect(() => {
         fetchTranscriptions();
-    }, [currentPage, perPage, timeFilter, credentials]);
+    }, [currentPage, perPage, timeFilter]);
 
     const handleSelectAll = (e) => {
         if (e.target.checked) {
@@ -194,12 +196,7 @@ const TranscriptionList = ({ credentials }) => {
 
     const handleDelete = async (id) => {
         try {
-            const response = await fetch(`/api/transcriptions/${id}`, {
-                method: 'DELETE',
-                headers: {
-                    'Authorization': `Bearer ${credentials}`
-                }
-            });
+            const response = await api.delete(`/api/transcriptions/${id}`);
             
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
@@ -208,7 +205,11 @@ const TranscriptionList = ({ credentials }) => {
             setTranscriptions(transcriptions.filter(t => t.id !== id));
         } catch (err) {
             console.error('Error deleting transcription:', err);
-            setError('Failed to delete transcription. Please try again.');
+            if (err.message.includes('Session expired')) {
+                handleSessionExpired();
+            } else {
+                setError('Failed to delete transcription. Please try again.');
+            }
         }
     };
 
@@ -216,12 +217,7 @@ const TranscriptionList = ({ credentials }) => {
         if (selectedIds.length === 0) return;
         
         try {
-            const response = await fetch('/api/transcriptions', {
-                method: 'DELETE',
-                headers: {
-                    'Authorization': `Bearer ${credentials}`,
-                    'Content-Type': 'application/json'
-                },
+            const response = await api.delete('/api/transcriptions', {
                 body: JSON.stringify({ ids: selectedIds })
             });
             
@@ -233,7 +229,11 @@ const TranscriptionList = ({ credentials }) => {
             setSelectedIds([]);
         } catch (err) {
             console.error('Error deleting selected transcriptions:', err);
-            setError('Failed to delete selected transcriptions. Please try again.');
+            if (err.message.includes('Session expired')) {
+                handleSessionExpired();
+            } else {
+                setError('Failed to delete selected transcriptions. Please try again.');
+            }
         }
     };
 
@@ -299,9 +299,9 @@ const TranscriptionList = ({ credentials }) => {
             }
             
             // Fetch the audio data with proper authorization
-            const response = await fetch(`/api/transcriptions/${id}/audio`, {
+            const response = await api.get(`/api/transcriptions/${id}/audio`, {
                 headers: {
-                    'Authorization': `Bearer ${credentials}`
+                    'Accept': 'audio/*'
                 }
             });
 
@@ -366,7 +366,11 @@ const TranscriptionList = ({ credentials }) => {
             }
         } catch (err) {
             console.error('Error playing audio:', err);
-            setError(`Failed to play audio for transcription ${id}. Please try again.`);
+            if (err.message.includes('Session expired')) {
+                handleSessionExpired();
+            } else {
+                setError(`Failed to play audio for transcription ${id}. Please try again.`);
+            }
             setLoadingStates(prev => ({...prev, [id]: false}));
         }
     };
