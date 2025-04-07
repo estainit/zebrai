@@ -8,8 +8,41 @@ import './App.css';
 // --- Configuration ---
 // Make sure this matches where your backend WebSocket is running
 const BACKEND_WS_URL = 'wss://cryptafe.io/ws'; // Always use secure WebSocket in production
-const AUDIO_MIME_TYPE = 'audio/webm;codecs=opus'; // Common choice, ensure backend expects this format/extension
 const TIMESLICE_MS = 2000; // Send chunks every 2 seconds
+
+// Detect iOS device
+const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+console.log('Is iOS device:', isIOS);
+
+// Get supported MIME type
+const getSupportedMimeType = () => {
+  const types = [
+    'audio/webm;codecs=opus',
+    'audio/webm',
+    'audio/ogg;codecs=opus',
+    'audio/mp4',
+    'audio/wav'
+  ];
+  
+  for (const type of types) {
+    if (MediaRecorder.isTypeSupported(type)) {
+      console.log('Using MIME type:', type);
+      return type;
+    }
+  }
+  
+  // If no supported type is found, return null to use browser default
+  console.warn('No supported MIME type found, using browser default');
+  return null;
+};
+
+// Get iOS-specific audio settings
+const getIOSAudioSettings = () => {
+  return {
+    mimeType: 'audio/mp4',
+    audioBitsPerSecond: 128000
+  };
+};
 
 function App() {
   const { isLoggedIn, authToken, username, logout, webSocketRef } = useAuth();
@@ -45,8 +78,22 @@ function App() {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       audioStreamRef.current = stream;
 
-      // 2. Create MediaRecorder
-      const recorder = new MediaRecorder(stream, { mimeType: AUDIO_MIME_TYPE });
+      // 2. Create MediaRecorder with supported MIME type
+      let recorderOptions = {};
+      
+      if (isIOS) {
+        // Use iOS-specific settings
+        recorderOptions = getIOSAudioSettings();
+        console.log('Using iOS-specific recorder options:', recorderOptions);
+      } else {
+        // Use detected MIME type for non-iOS devices
+        const mimeType = getSupportedMimeType();
+        if (mimeType) {
+          recorderOptions = { mimeType };
+        }
+      }
+      
+      const recorder = new MediaRecorder(stream, recorderOptions);
       mediaRecorderRef.current = recorder;
 
       // 3. Connect WebSocket

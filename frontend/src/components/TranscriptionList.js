@@ -19,8 +19,10 @@ const TranscriptionList = ({ credentials }) => {
     const [progressStates, setProgressStates] = useState({});
     const [durationStates, setDurationStates] = useState({});
     const [currentTimeStates, setCurrentTimeStates] = useState({});
+    const [currentlyPlaying, setCurrentlyPlaying] = useState(null);
     const audioRefs = useRef({});
     const eventHandlersRef = useRef({});
+    const audioElements = useRef({});
 
     // Define event handlers using useCallback to prevent recreation on each render
     const handleLoadedData = useCallback((id) => {
@@ -246,13 +248,45 @@ const TranscriptionList = ({ credentials }) => {
                 
                 // If it was paused, just resume
                 if (pausedStates[id]) {
-                    audio.play();
-                    setPausedStates(prev => ({...prev, [id]: false}));
-                    setPlayingStates(prev => ({...prev, [id]: true}));
-                    setLoadingStates(prev => ({...prev, [id]: false}));
-                    return;
+                    try {
+                        // For iOS, we need to handle the play promise
+                        const playPromise = audio.play();
+                        if (playPromise !== undefined) {
+                            playPromise
+                                .then(() => {
+                                    setPausedStates(prev => ({...prev, [id]: false}));
+                                    setPlayingStates(prev => ({...prev, [id]: true}));
+                                    setLoadingStates(prev => ({...prev, [id]: false}));
+                                })
+                                .catch(error => {
+                                    console.error('Error resuming audio:', error);
+                                    // If resume fails, try to reload the audio
+                                    audio.src = audio.src;
+                                    const retryPromise = audio.play();
+                                    if (retryPromise !== undefined) {
+                                        retryPromise
+                                            .then(() => {
+                                                setPausedStates(prev => ({...prev, [id]: false}));
+                                                setPlayingStates(prev => ({...prev, [id]: true}));
+                                                setLoadingStates(prev => ({...prev, [id]: false}));
+                                            })
+                                            .catch(retryError => {
+                                                console.error('Error retrying audio playback:', retryError);
+                                                setError(`Failed to play audio for transcription ${id}. Please try again.`);
+                                                cleanupAudio(id);
+                                            });
+                                    }
+                                });
+                        }
+                        return;
+                    } catch (playError) {
+                        console.error('Error resuming audio:', playError);
+                        // If resume fails, try to reload the audio
+                        audio.src = audio.src;
+                        await audio.play();
+                    }
                 }
-                
+
                 // Otherwise, we need to set up the audio element
                 setupAudioElement(audio, id);
             } else {
@@ -270,19 +304,18 @@ const TranscriptionList = ({ credentials }) => {
                     'Authorization': `Bearer ${credentials}`
                 }
             });
-            
+
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
-            
+
             // Get the content length header to estimate duration
             const contentLength = response.headers.get('Content-Length');
             if (contentLength) {
                 // Estimate duration based on file size
-                // WebM/Opus typically has a bitrate of around 64-128 kbps
-                // We'll use 96 kbps as an average
+                // AAC typically has a bitrate of around 128 kbps
                 const fileSizeBytes = parseInt(contentLength, 10);
-                const estimatedDurationSeconds = (fileSizeBytes * 8) / (96 * 1024); // Convert to seconds
+                const estimatedDurationSeconds = (fileSizeBytes * 8) / (128 * 1024); // Convert to seconds
                 
                 // Set the estimated duration
                 setDurationStates(prev => ({...prev, [id]: estimatedDurationSeconds}));
@@ -292,16 +325,40 @@ const TranscriptionList = ({ credentials }) => {
             
             const audioBlob = await response.blob();
             const audioUrl = URL.createObjectURL(audioBlob);
-            
+
             // Set the source to the blob URL
             audioRefs.current[id].src = audioUrl;
+
+            // For iOS, we need to load the audio first
+            audioRefs.current[id].load();
             
             // Play the audio
             try {
-                await audioRefs.current[id].play();
-                setPlayingStates(prev => ({...prev, [id]: true}));
-                setPausedStates(prev => ({...prev, [id]: false}));
-                setLoadingStates(prev => ({...prev, [id]: false}));
+                // For iOS, we need to play in response to a user gesture
+                const playPromise = audioRefs.current[id].play();
+                if (playPromise !== undefined) {
+                    playPromise
+                        .then(() => {
+                            setPlayingStates(prev => ({...prev, [id]: true}));
+                            setPausedStates(prev => ({...prev, [id]: false}));
+                            setLoadingStates(prev => ({...prev, [id]: false}));
+                        })
+                        .catch(error => {
+                            console.error('Error playing audio:', error);
+                            // For iOS, we might need to try a different approach
+                            if (error.name === 'NotAllowedError' || error.name === 'AbortError') {
+                                // Try to play without user interaction (might work on some iOS versions)
+                                audioRefs.current[id].play().catch(e => {
+                                    console.error('Second attempt failed:', e);
+                                    setError(`Failed to play audio for transcription ${id}. Please try again.`);
+                                    cleanupAudio(id);
+                                });
+                            } else {
+                                setError(`Failed to play audio for transcription ${id}. Please try again.`);
+                                cleanupAudio(id);
+                            }
+                        });
+                }
             } catch (playError) {
                 console.error('Error playing audio:', playError);
                 setError(`Failed to play audio for transcription ${id}. The audio file may be corrupted.`);

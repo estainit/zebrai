@@ -131,7 +131,7 @@ async def get_transcription_audio_endpoint(
 ):
     """Get audio data for a transcription."""
     try:
-        audio_data = await get_transcription_audio(db, transcription_id)
+        audio_data, mime_type = await get_transcription_audio(db, transcription_id)
         if not audio_data:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -141,9 +141,11 @@ async def get_transcription_audio_endpoint(
         # Return the audio data with appropriate headers
         return Response(
             content=audio_data,
-            media_type="audio/webm; codecs=opus",
+            media_type=mime_type,
             headers={
-                "Content-Disposition": f"attachment; filename=transcription_{transcription_id}.webm"
+                "Content-Disposition": f"attachment; filename=transcription_{transcription_id}.{mime_type.split('/')[-1]}",
+                "Accept-Ranges": "bytes",
+                "Cache-Control": "no-cache, no-store, must-revalidate"
             }
         )
     except HTTPException:
