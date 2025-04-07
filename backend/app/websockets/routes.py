@@ -75,7 +75,6 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str, db: AsyncSes
         # Initialize variables
         audio_chunks = []
         chunk_count = 0
-        save_frequency = 10  # Save every 10 chunks
         do_transcript = user.conf.get("doTranscript", True) if user.conf else True
         
         # Process audio chunks
@@ -92,8 +91,8 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str, db: AsyncSes
                 async with aiofiles.open(temp_file_path, 'ab') as temp_file:
                     await temp_file.write(data)
                 
-                # Save to database periodically
-                if chunk_count % save_frequency == 0:
+                # Save to database and transcribe when we reach the required number of chunks
+                if chunk_count % settings.CHUNKS_COUNT_NEED_FOR_TRANSCRIPTION == 0:
                     # Read the entire file so far
                     async with aiofiles.open(temp_file_path, 'rb') as temp_file:
                         audio_data = await temp_file.read()
@@ -129,6 +128,10 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str, db: AsyncSes
                                 "type": "transcript",
                                 "text": transcript
                             })
+                            
+                            # Clear the audio chunks after successful transcription
+                            audio_chunks = []
+                            
                         except Exception as e:
                             logger.error(f"Transcription error: {str(e)}")
                             # Continue processing even if transcription fails
@@ -182,13 +185,7 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str, db: AsyncSes
                         logger.error(f"Transcription error: {str(e)}")
             except Exception as e:
                 logger.error(f"Error saving final audio data: {str(e)}")
-    
-    except WebSocketDisconnect:
-        logger.info(f"WebSocket disconnected for session {session_id}")
-    except Exception as e:
-        logger.error(f"WebSocket error: {str(e)}")
     finally:
-        # Clean up
         manager.disconnect(session_id)
         
         # Clean up temporary file

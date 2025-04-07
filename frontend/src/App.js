@@ -9,6 +9,8 @@ import './App.css';
 // Make sure this matches where your backend WebSocket is running
 const BACKEND_WS_URL = 'wss://cryptafe.io/ws'; // Always use secure WebSocket in production
 const TIMESLICE_MS = 2000; // Send chunks every 2 seconds
+// Note: The backend is configured to transcribe after every 10 chunks (CHUNKS_COUNT_NEED_FOR_TRANSCRIPTION)
+// This means transcription will occur approximately every 20 seconds (10 chunks * 2 seconds per chunk)
 
 // Detect iOS device
 const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
