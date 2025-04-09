@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 # Constants for chunk processing
 LOW_CHUNK_COUNT = 2  # Number of chunks to accumulate before quick transcription
-HI_CHUNK_COUNT = 7  # Number of chunks to accumulate before database update
+HI_CHUNK_COUNT = 4  # Number of chunks to accumulate before database update
 
 class WebSocketService:
     def __init__(self, db: AsyncSession):
@@ -185,19 +185,16 @@ class WebSocketService:
             self.chunk_count += 1
 
     async def _process_low_chunk_count(self, websocket: WebSocket):
-        """Process accumulated chunks for quick transcription without database update."""
+        """Process accumulated chunks for database transcription update."""
         try:
-            # Combine recent chunks for transcription
-            recent_chunks = self.accumulated_chunks[-LOW_CHUNK_COUNT:]
-            
             # Create a properly formatted WebM file
-            input_file = os.path.join(self.temp_dir, f"temp_input_{self.chunk_count}.webm")
-            output_file = os.path.join(self.temp_dir, f"temp_output_{self.chunk_count}.webm")
+            input_file = os.path.join(self.temp_dir, f"temp_input_low_{self.chunk_count}.webm")
+            output_file = os.path.join(self.temp_dir, f"temp_output_low_{self.chunk_count}.webm")
             
             # Write the combined chunks with proper header
             with open(input_file, 'wb') as f:
                 f.write(self.webm_header)  # Write header first
-                for chunk in recent_chunks:
+                for chunk in self.accumulated_chunks:
                     f.write(chunk[4:] if chunk.startswith(self.webm_header) else chunk)
 
             # Use a simpler FFmpeg command that preserves the original format
@@ -229,7 +226,8 @@ class WebSocketService:
                 logger.info(f"Sent quick transcript for chunks {self.chunk_count - LOW_CHUNK_COUNT + 1} to {self.chunk_count}")
 
         except Exception as e:
-            logger.error(f"Error in quick transcription: {e}")
+            logger.error(f"Error in low chunk transcription update: {e}")
+
 
     async def _process_hi_chunk_count(self, websocket: WebSocket):
         """Process accumulated chunks for database transcription update."""
@@ -301,3 +299,59 @@ class WebSocketService:
                 os.rmdir(self.temp_dir)
         except Exception as e:
             logger.error(f"Error during cleanup: {e}") 
+        
+
+    async def ZZ_process_low_chunk_countZZ(self, websocket: WebSocket):
+        """Process accumulated chunks for quick transcription without database update."""
+        try:
+            # Combine recent chunks for transcription
+            recent_chunks = self.accumulated_chunks[-LOW_CHUNK_COUNT:]
+            
+            # Create a properly formatted WebM file
+            input_file = os.path.join(self.temp_dir, f"temp_input_{self.chunk_count}.webm")
+            output_file = os.path.join(self.temp_dir, f"temp_output_{self.chunk_count}.webm")
+            
+            # Write the combined chunks with proper header
+            with open(input_file, 'wb') as f:
+                # Write header only once
+                f.write(self.webm_header)
+                # For each chunk, skip the header if it exists
+                for chunk in recent_chunks:
+                    if chunk[:4] == self.webm_header:
+                        f.write(chunk[4:])
+                    else:
+                        f.write(chunk)
+
+            # Use a simpler FFmpeg command that preserves the original format
+            ffmpeg_cmd = [
+                'ffmpeg', '-i', input_file,
+                '-c:a', 'copy',  # Copy the audio stream without re-encoding
+                output_file
+            ]
+
+            try:
+                subprocess.run(ffmpeg_cmd, check=True, capture_output=True, text=True)
+            except subprocess.CalledProcessError as e:
+                logger.error(f"FFmpeg processing failed: {e.stderr}")
+                return
+
+            # Read the processed file
+            with open(output_file, 'rb') as f:
+                processed_audio = f.read()
+
+            # Transcribe the processed audio
+            new_transcript = await transcribe_audio(processed_audio)
+            
+            if new_transcript:
+                # Send transcript to client without updating database
+                await websocket.send_json({
+                    "type": "transcript",
+                    "text": new_transcript
+                })
+                logger.info(f"Sent quick transcript for chunks {self.chunk_count - LOW_CHUNK_COUNT + 1} to {self.chunk_count}")
+
+        except Exception as e:
+            logger.error(f"Error in quick transcription: {e}")
+            logger.error(f"Chunk count: {self.chunk_count}")
+            logger.error(f"Recent chunks: {len(recent_chunks)}")
+            logger.error(f"WebM header: {self.webm_header.hex() if self.webm_header else 'None'}")
