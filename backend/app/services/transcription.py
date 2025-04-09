@@ -170,48 +170,6 @@ async def transcribe_audio(audio_data: Union[bytes, BytesIO]) -> Optional[str]:
         except Exception as e:
             logger.error(f"Error cleaning up temporary file: {str(e)}")
 
-
-async def get_transcriptionsZZ(
-    db: AsyncSession,
-    page: int = 1,
-    per_page: int = 20
-):
-    """Get transcriptions with pagination."""
-    # Calculate offset
-    offset = (page - 1) * per_page
-    
-    # Get total count
-    count_query = select(func.count()).select_from(transcription_chunks)
-    total_count = await db.scalar(count_query)
-    
-    # Get transcriptions
-    query = (
-        select(transcription_chunks)
-        .order_by(transcription_chunks.c.created_at.desc())
-        .offset(offset)
-        .limit(per_page)
-    )
-    
-    result = await db.execute(query)
-    items = result.fetchall()
-    
-    # Format file sizes and add row numbers
-    formatted_items = []
-    for index, item in enumerate(items):
-        formatted_item = dict(item)
-        formatted_item["file_size"] = format_file_size(len(item.audio_chunk))
-        # Add row number that continues across pages
-        formatted_item["row_number"] = total_count - offset - index
-        formatted_items.append(formatted_item)
-    
-    return {
-        "items": formatted_items,
-        "total": total_count,
-        "page": page,
-        "per_page": per_page,
-        "has_more": offset + per_page < total_count
-    }
-
 async def delete_transcription(
     db: AsyncSession,
     transcription_id: int

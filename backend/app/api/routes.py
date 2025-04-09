@@ -8,7 +8,6 @@ from app.core.security import verify_token
 from app.db.session import get_db_session
 from app.services.auth import authenticate_user, reset_password
 from app.services.transcription import (
-    get_transcriptionsZZ,
     delete_transcription,
     delete_multiple_transcriptions,
     get_transcription_audio
@@ -57,23 +56,6 @@ async def reset_password_endpoint(reset_data: PasswordResetRequest, db: AsyncSes
         )
     return {"message": "Password reset successfully"}
 
-# Transcription routes
-@router.get("/transcriptions")
-async def get_transcriptions_endpoint(
-    page: int = 1,
-    per_page: int = 20,
-    db: AsyncSession = Depends(get_db_session),
-    user = Depends(verify_token)
-):
-    """Get transcriptions with pagination."""
-    try:
-        return await get_transcriptionsZZ(db, page, per_page)
-    except Exception as e:
-        logger.error(f"Error fetching transcriptions: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to fetch transcriptions"
-        )
 
 @router.delete("/transcriptions/{transcription_id}")
 async def delete_transcription_endpoint(

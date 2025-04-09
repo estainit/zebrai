@@ -5,7 +5,6 @@ from sqlalchemy import select, func
 
 from app.services.transcription import (
     transcribe_audio,
-    get_transcriptionsZZ,
     delete_transcription,
     delete_multiple_transcriptions,
     get_transcription_audio,
@@ -45,91 +44,6 @@ async def test_transcribe_audio_error():
         
         # Verify the exception
         assert str(excinfo.value) == "API error"
-
-@pytest.mark.asyncio
-async def test_get_transcriptions_empty(db_session):
-    """Test getting transcriptions with empty database."""
-    # Get transcriptions
-    result = await get_transcriptionsZZ(db_session)
-    
-    # Verify the result
-    assert result["items"] == []
-    assert result["total"] == 0
-    assert result["page"] == 1
-    assert result["per_page"] == 20
-    assert result["has_more"] is False
-
-@pytest.mark.asyncio
-async def test_get_transcriptions_with_data(db_session):
-    """Test getting transcriptions with data in the database."""
-    # Insert test data
-    test_data = [
-        {
-            "session_id": "test-session-1",
-            "audio_chunk": b"test audio data 1",
-            "transcript": "Test transcription 1"
-        },
-        {
-            "session_id": "test-session-2",
-            "audio_chunk": b"test audio data 2",
-            "transcript": "Test transcription 2"
-        },
-        {
-            "session_id": "test-session-3",
-            "audio_chunk": b"test audio data 3",
-            "transcript": "Test transcription 3"
-        }
-    ]
-    
-    for data in test_data:
-        query = transcription_chunks.insert().values(**data)
-        await db_session.execute(query)
-    
-    await db_session.commit()
-    
-    # Get transcriptions
-    result = await get_transcriptionsZZ(db_session)
-    
-    # Verify the result
-    assert len(result["items"]) == 3
-    assert result["total"] == 3
-    assert result["page"] == 1
-    assert result["per_page"] == 20
-    assert result["has_more"] is False
-    
-    # Verify the items
-    for i, item in enumerate(result["items"]):
-        assert item["session_id"] == f"test-session-{i+1}"
-        assert item["transcript"] == f"Test transcription {i+1}"
-        assert "file_size" in item
-
-@pytest.mark.asyncio
-async def test_get_transcriptions_pagination(db_session):
-    """Test getting transcriptions with pagination."""
-    # Insert test data
-    test_data = []
-    for i in range(25):
-        test_data.append({
-            "session_id": f"test-session-{i}",
-            "audio_chunk": b"test audio data",
-            "transcript": f"Test transcription {i}"
-        })
-    
-    for data in test_data:
-        query = transcription_chunks.insert().values(**data)
-        await db_session.execute(query)
-    
-    await db_session.commit()
-    
-    # Get transcriptions with pagination
-    result = await get_transcriptionsZZ(db_session, page=2, per_page=10)
-    
-    # Verify the result
-    assert len(result["items"]) == 10
-    assert result["total"] == 25
-    assert result["page"] == 2
-    assert result["per_page"] == 10
-    assert result["has_more"] is True
 
 @pytest.mark.asyncio
 async def test_delete_transcription_success(db_session):
