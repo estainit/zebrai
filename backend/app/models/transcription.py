@@ -9,6 +9,7 @@ transcription_chunks = Table(
     metadata,
     Column("id", Integer, primary_key=True),
     Column("session_id", String(100), index=True),  # To group chunks by recording session
+    Column("user_id", Integer, nullable=False),  # Add user_id column
     Column("audio_chunk", LargeBinary, nullable=False),  # Store raw audio bytes
     Column("transcript", Text, nullable=True),  # Store transcribed text
     Column("created_at", DateTime(timezone=True), server_default=func.now())
