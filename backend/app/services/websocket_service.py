@@ -1,5 +1,8 @@
 import logging
 import jwt
+import tempfile
+import os
+import subprocess
 from fastapi import WebSocket, WebSocketDisconnect
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update
@@ -10,12 +13,21 @@ from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
+# Constants for chunk processing
+LOW_CHUNK_COUNT = 2  # Number of chunks to accumulate before quick transcription
+HI_CHUNK_COUNT = 7  # Number of chunks to accumulate before database update
+
 class WebSocketService:
     def __init__(self, db: AsyncSession):
         self.db = db
         self.user = None
         self.session_id = None
         self.current_transcription_id = None
+        self.temp_dir = tempfile.mkdtemp()
+        self.chunk_files = []
+        self.accumulated_chunks = []  # Store chunks in memory
+        self.chunk_count = 0
+        self.webm_header = None  # Store WebM header from first chunk
 
     async def handle_connection(self, websocket: WebSocket, session_id: str):
         """Handle the WebSocket connection lifecycle."""
@@ -61,41 +73,200 @@ class WebSocketService:
                         
         except WebSocketDisconnect:
             logger.info("WebSocket disconnected")
+            # Save final transcription if there are remaining chunks
+            if self.accumulated_chunks:
+                await self._process_hi_chunk_count(websocket)
         except Exception as e:
             logger.error(f"Error in WebSocket connection: {e}")
             await websocket.close(code=1011, reason=str(e))
+        finally:
+            await self.cleanup()
 
     async def _process_audio_chunk(self, websocket: WebSocket, audio_chunk: bytes):
         """Process a single audio chunk and update the database."""
         try:
-            if self.current_transcription_id is None:
-                # First chunk - create new record
-                insert_query = transcription_chunks.insert().values(
-                    session_id=self.session_id,
-                    user_id=self.user.id,
-                    audio_chunk=audio_chunk,
-                    transcript="",
-                    created_at=datetime.utcnow()
+            # For the first chunk
+            if self.chunk_count == 0:
+                logger.info(f"First chunk received, size: {len(audio_chunk)} bytes")
+                logger.info(f"First chunk header: {audio_chunk[:8].hex()}")
+                
+                # Store the WebM header from the first chunk
+                self.webm_header = audio_chunk[:4]
+                logger.info(f"Extracted WebM header: {self.webm_header.hex()}")
+                
+                try:
+                    # Create new record with the first chunk
+                    insert_query = transcription_chunks.insert().values(
+                        session_id=self.session_id,
+                        user_id=self.user.id,
+                        audio_chunk=audio_chunk,
+                        transcript="",
+                        created_at=datetime.utcnow()
+                    )
+                    result = await self.db.execute(insert_query)
+                    await self.db.commit()
+                    self.current_transcription_id = result.inserted_primary_key[0]
+                    logger.info(f"Created new transcription record with first chunk: {self.current_transcription_id}")
+                except Exception as e:
+                    await self.db.rollback()
+                    logger.error(f"Failed to create transcription record: {e}")
+                    return
+                
+                # Try to transcribe the first chunk directly
+                try:
+                    new_transcript = await transcribe_audio(audio_chunk)
+                    if new_transcript:
+                        await websocket.send_json({
+                            "type": "transcript",
+                            "text": new_transcript
+                        })
+                        logger.info(f"Sent first chunk transcript: {new_transcript}")
+                except Exception as e:
+                    logger.error(f"Failed to transcribe first chunk: {e}")
+                    # Continue even if transcription fails
+                
+                self.accumulated_chunks.append(audio_chunk)
+                self.chunk_count += 1
+                return
+
+            # For subsequent chunks
+            try:
+                # Save the chunk to a temporary file
+                chunk_file = os.path.join(self.temp_dir, f"chunk_{len(self.chunk_files)}.webm")
+                with open(chunk_file, 'wb') as f:
+                    f.write(audio_chunk)
+                self.chunk_files.append(chunk_file)
+                self.accumulated_chunks.append(audio_chunk)
+                self.chunk_count += 1
+
+                # Get the current audio data from the database
+                query = select(transcription_chunks.c.audio_chunk).where(
+                    transcription_chunks.c.id == self.current_transcription_id
                 )
-                result = await self.db.execute(insert_query)
-                await self.db.commit()
-                self.current_transcription_id = result.inserted_primary_key[0]
-                logger.info(f".........Created new transcription record: {self.current_transcription_id}")
-            else:
-                # Append to existing record
+                result = await self.db.execute(query)
+                current_audio = result.scalar_one()
+
+                # Combine the audio data
+                combined_audio = current_audio + audio_chunk
+
+                # Update the database with the combined audio
                 update_query = (
                     update(transcription_chunks)
                     .where(transcription_chunks.c.id == self.current_transcription_id)
                     .values(
-                        audio_chunk=transcription_chunks.c.audio_chunk + audio_chunk
+                        audio_chunk=combined_audio
                     )
                 )
-                #await self.db.execute(update_query)
-                #await self.db.commit()
-                logger.info(f"...........Appended chunk to transcription: {self.current_transcription_id}")
+                await self.db.execute(update_query)
+                await self.db.commit()
+                logger.info(f"Appended chunk to transcription: {self.current_transcription_id}")
 
-            # Transcribe the current audio chunk directly
-            new_transcript = await transcribe_audio(audio_chunk)
+                # Process chunks based on count
+                if self.chunk_count % LOW_CHUNK_COUNT == 0:
+                    await self._process_low_chunk_count(websocket)
+                
+                if self.chunk_count % HI_CHUNK_COUNT == 0:
+                    await self._process_hi_chunk_count(websocket)
+
+            except Exception as e:
+                await self.db.rollback()
+                logger.error(f"Database error processing chunk: {e}")
+                # Continue processing even if database update fails
+                self.accumulated_chunks.append(audio_chunk)
+                self.chunk_count += 1
+
+        except Exception as e:
+            logger.error(f"Error processing audio chunk: {e}")
+            logger.error(f"Chunk count: {self.chunk_count}")
+            logger.error(f"Chunk size: {len(audio_chunk)}")
+            logger.error(f"Chunk header: {audio_chunk[:8].hex() if audio_chunk else 'None'}")
+            # Continue processing even if there's an error
+            self.accumulated_chunks.append(audio_chunk)
+            self.chunk_count += 1
+
+    async def _process_low_chunk_count(self, websocket: WebSocket):
+        """Process accumulated chunks for quick transcription without database update."""
+        try:
+            # Combine recent chunks for transcription
+            recent_chunks = self.accumulated_chunks[-LOW_CHUNK_COUNT:]
+            
+            # Create a properly formatted WebM file
+            input_file = os.path.join(self.temp_dir, f"temp_input_{self.chunk_count}.webm")
+            output_file = os.path.join(self.temp_dir, f"temp_output_{self.chunk_count}.webm")
+            
+            # Write the combined chunks with proper header
+            with open(input_file, 'wb') as f:
+                f.write(self.webm_header)  # Write header first
+                for chunk in recent_chunks:
+                    f.write(chunk[4:] if chunk.startswith(self.webm_header) else chunk)
+
+            ffmpeg_cmd = [
+                'ffmpeg', '-i', input_file,
+                '-c:a', 'libvorbis',
+                '-b:a', '128k',
+                '-ar', '16000',
+                '-ac', '1',
+                output_file
+            ]
+
+            try:
+                subprocess.run(ffmpeg_cmd, check=True, capture_output=True, text=True)
+            except subprocess.CalledProcessError as e:
+                logger.error(f"FFmpeg processing failed: {e.stderr}")
+                return
+
+            # Read the processed file
+            with open(output_file, 'rb') as f:
+                processed_audio = f.read()
+
+            # Transcribe the processed audio
+            new_transcript = await transcribe_audio(processed_audio)
+            
+            if new_transcript:
+                # Send transcript to client without updating database
+                await websocket.send_json({
+                    "type": "transcript",
+                    "text": new_transcript
+                })
+                logger.info(f"Sent quick transcript for chunks {self.chunk_count - LOW_CHUNK_COUNT + 1} to {self.chunk_count}")
+
+        except Exception as e:
+            logger.error(f"Error in quick transcription: {e}")
+
+    async def _process_hi_chunk_count(self, websocket: WebSocket):
+        """Process accumulated chunks for database transcription update."""
+        try:
+            # Create a properly formatted WebM file
+            input_file = os.path.join(self.temp_dir, f"temp_input_hi_{self.chunk_count}.webm")
+            output_file = os.path.join(self.temp_dir, f"temp_output_hi_{self.chunk_count}.webm")
+            
+            # Write the combined chunks with proper header
+            with open(input_file, 'wb') as f:
+                f.write(self.webm_header)  # Write header first
+                for chunk in self.accumulated_chunks:
+                    f.write(chunk[4:] if chunk.startswith(self.webm_header) else chunk)
+
+            ffmpeg_cmd = [
+                'ffmpeg', '-i', input_file,
+                '-c:a', 'libvorbis',
+                '-b:a', '128k',
+                '-ar', '16000',
+                '-ac', '1',
+                output_file
+            ]
+
+            try:
+                subprocess.run(ffmpeg_cmd, check=True, capture_output=True, text=True)
+            except subprocess.CalledProcessError as e:
+                logger.error(f"FFmpeg processing failed: {e.stderr}")
+                return
+
+            # Read the processed file
+            with open(output_file, 'rb') as f:
+                processed_audio = f.read()
+
+            # Transcribe the processed audio
+            new_transcript = await transcribe_audio(processed_audio)
             
             if new_transcript:
                 # Get the current transcript
@@ -108,7 +279,7 @@ class WebSocketService:
                 # Append the new transcript
                 combined_transcript = f"{prev_transcript} {new_transcript}".strip()
                 
-                # Update the transcript
+                # Update the transcript in database
                 update_query = (
                     update(transcription_chunks)
                     .where(transcription_chunks.c.id == self.current_transcription_id)
@@ -119,13 +290,18 @@ class WebSocketService:
                 await self.db.execute(update_query)
                 await self.db.commit()
                 
-                # Send transcript to client
-                await websocket.send_json({
-                    "type": "transcript",
-                    "text": new_transcript
-                })
-                logger.info(f"Updated transcript for transcription: {self.current_transcription_id}")
+                logger.info(f"Updated database transcript for chunks 1 to {self.chunk_count}")
 
         except Exception as e:
-            logger.error(f"Error processing audio chunk: {e}")
-            # Don't raise the exception to keep the connection alive 
+            logger.error(f"Error in database transcription update: {e}")
+
+    async def cleanup(self):
+        """Clean up temporary files."""
+        try:
+            for file in self.chunk_files:
+                if os.path.exists(file):
+                    os.remove(file)
+            if os.path.exists(self.temp_dir):
+                os.rmdir(self.temp_dir)
+        except Exception as e:
+            logger.error(f"Error during cleanup: {e}") 
