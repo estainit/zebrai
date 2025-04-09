@@ -171,30 +171,18 @@ class WebSocketService:
             
             # Send transcript to client
             if transcript and self.session_id in self.active_connections:
-                await self.active_connections[self.session_id].send_json({
-                    "type": "transcript",
-                    "text": transcript
-                })
+                try:
+                    await self.active_connections[self.session_id].send_json({
+                        "type": "transcript",
+                        "text": transcript,
+                        "chunk_number": self.chunk_count
+                    })
+                    logger.info(f"Successfully sent transcript for chunk {self.chunk_count}")
+                except Exception as e:
+                    logger.error(f"Failed to send transcript to client: {e}")
         except Exception as e:
             logger.error(f"Error in _transcribe_and_save_chunks: {e}")
             raise
-
-    async def _cleanup(self, websocket: WebSocket):
-        """Clean up resources and save final recording."""
-        try:
-            if self.audio_chunks:
-                await self._save_final_recording()
-        except Exception as e:
-            logger.error(f"Error saving final recording: {e}")
-            
-        try:
-            if self.temp_file_path and os.path.exists(self.temp_file_path):
-                os.unlink(self.temp_file_path)
-        except Exception as e:
-            logger.error(f"Error cleaning up temporary file: {e}")
-        
-        if self.session_id in self.active_connections:
-            del self.active_connections[self.session_id]
 
     async def _save_final_recording(self):
         """Save the complete recording to the database."""
@@ -229,10 +217,43 @@ class WebSocketService:
             
             # Send final transcript to client
             if transcript and self.session_id in self.active_connections:
-                await self.active_connections[self.session_id].send_json({
-                    "type": "transcript",
-                    "text": transcript
-                })
+                try:
+                    await self.active_connections[self.session_id].send_json({
+                        "type": "final_transcript",
+                        "text": transcript,
+                        "total_chunks": self.chunk_count
+                    })
+                    logger.info("Successfully sent final transcript to client")
+                except Exception as e:
+                    logger.error(f"Failed to send final transcript to client: {e}")
         except Exception as e:
             logger.error(f"Error in _save_final_recording: {e}")
-            raise 
+            raise
+
+    async def _cleanup(self, websocket: WebSocket):
+        """Clean up resources and save final recording."""
+        try:
+            if self.audio_chunks:
+                await self._save_final_recording()
+                
+                # Send a completion message to the client
+                if self.session_id in self.active_connections:
+                    try:
+                        await self.active_connections[self.session_id].send_json({
+                            "type": "recording_complete",
+                            "message": "Recording session completed"
+                        })
+                        logger.info("Sent recording completion message to client")
+                    except Exception as e:
+                        logger.error(f"Failed to send completion message: {e}")
+        except Exception as e:
+            logger.error(f"Error saving final recording: {e}")
+            
+        try:
+            if self.temp_file_path and os.path.exists(self.temp_file_path):
+                os.unlink(self.temp_file_path)
+        except Exception as e:
+            logger.error(f"Error cleaning up temporary file: {e}")
+        
+        if self.session_id in self.active_connections:
+            del self.active_connections[self.session_id] 
