@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { v4 as uuidv4 } from 'uuid'; // Import uuid
 import Login from './components/Login';
 import TranscriptionList from './components/TranscriptionList';
@@ -47,11 +47,10 @@ const getIOSAudioSettings = () => {
 };
 
 function App() {
-  const { isLoggedIn, authToken, username, logout, webSocketRef } = useAuth();
+  const { isLoggedIn, authToken, username, logout, webSocketRef, handleSessionExpired } = useAuth();
   const [isRecording, setIsRecording] = useState(false);
   const [transcript, setTranscript] = useState('');
   const [error, setError] = useState('');
-  const [sessionId, setSessionId] = useState(uuidv4());
   const [recordingDuration, setRecordingDuration] = useState(0);
 
   // Refs to hold instances that shouldn't trigger re-renders on change
@@ -67,7 +66,6 @@ function App() {
     
     // Generate a new session ID for each recording
     const newSessionId = uuidv4();
-    setSessionId(newSessionId);
     
     setError('');
     setTranscript(''); // Clear previous transcript
@@ -241,6 +239,18 @@ function App() {
       
       // Reset recording state
       setIsRecording(false);
+      
+      // Automatically refresh the transcription list after a short delay
+      // to ensure the new recording is saved in the database
+      setTimeout(() => {
+        const transcriptionList = document.querySelector('.transcription-list');
+        if (transcriptionList) {
+          const refreshButton = transcriptionList.querySelector('.refresh-button');
+          if (refreshButton) {
+            refreshButton.click();
+          }
+        }
+      }, 2000); // Wait 2 seconds to ensure the recording is saved
     }, 1000);
   };
 
