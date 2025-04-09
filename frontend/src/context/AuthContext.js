@@ -77,14 +77,23 @@ export const AuthProvider = ({ children }) => {
   };
 
   const logout = () => {
-    cleanupWebSocket();
-    setAuthToken(null);
-    setUsername(null);
-    setIsLoggedIn(false);
-    setError('');
-    setSessionExpired(false);
+    // Don't clear the time filter from localStorage
+    // localStorage.removeItem('timeFilter'); // Removed this line
+    
+    // Clear other auth-related items
     localStorage.removeItem('authToken');
     localStorage.removeItem('username');
+    
+    // Close WebSocket if open
+    if (webSocketRef.current) {
+        webSocketRef.current.close();
+        webSocketRef.current = null;
+    }
+    
+    // Reset state
+    setIsLoggedIn(false);
+    setAuthToken(null);
+    setUsername(null);
   };
 
   // Handle session expiration

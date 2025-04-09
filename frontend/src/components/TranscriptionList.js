@@ -14,7 +14,10 @@ const TranscriptionList = ({ credentials }) => {
     const [error, setError] = useState('');
     const [hasMore, setHasMore] = useState(true);
     const [perPage, setPerPage] = useState(10);
-    const [timeFilter, setTimeFilter] = useState('all');
+    const [timeFilter, setTimeFilter] = useState(() => {
+        const savedFilter = localStorage.getItem('timeFilter');
+        return savedFilter || 'all';
+    });
     const [loadingStates, setLoadingStates] = useState({});
     const [playingStates, setPlayingStates] = useState({});
     const [pausedStates, setPausedStates] = useState({});
@@ -27,6 +30,11 @@ const TranscriptionList = ({ credentials }) => {
     const audioElements = useRef({});
     const api = useApi();
     const { handleSessionExpired } = useAuth();
+
+    // Update localStorage whenever timeFilter changes
+    useEffect(() => {
+        localStorage.setItem('timeFilter', timeFilter);
+    }, [timeFilter]);
 
     // Define event handlers using useCallback to prevent recreation on each render
     const handleLoadedData = useCallback((id) => {
@@ -167,9 +175,13 @@ const TranscriptionList = ({ credentials }) => {
     };
 
     const handleTimeFilterChange = (e) => {
-        const newTimeFilter = e.target.value;
-        setTimeFilter(newTimeFilter);
-        setCurrentPage(1); // Reset to first page when changing time filter
+        const newFilter = e.target.value;
+        setTimeFilter(newFilter);
+        // Reset pagination when filter changes
+        setCurrentPage(1);
+        setHasMore(true);
+        // Clear existing transcriptions
+        setTranscriptions([]);
     };
 
     useEffect(() => {
