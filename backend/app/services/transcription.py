@@ -146,11 +146,10 @@ async def transcribe_audio(audio_data: Union[bytes, BytesIO]) -> Optional[str]:
         try:
             # Open the audio file
             with open(temp_file_path, "rb") as audio_file:
-                # Call OpenAI's Whisper API
+                # Call OpenAI's Whisper API without language parameter to enable auto-detection
                 transcript = openai.Audio.transcribe(
                     "whisper-1",
-                    audio_file,
-                    language="en"
+                    audio_file
                 )
                 
             return transcript.text
