@@ -23,6 +23,7 @@ class WebSocketService:
         self.temp_file_path: Optional[str] = None
         self.user = None
         self.session_id = None
+        self.is_first_chunk = True
 
     async def handle_connection(self, websocket: WebSocket, session_id: str):
         """Handle the WebSocket connection lifecycle."""
@@ -121,6 +122,13 @@ class WebSocketService:
             
             # Save chunk to temporary file
             async with aiofiles.open(self.temp_file_path, "ab") as temp_file:
+                if self.is_first_chunk:
+                    # Write WebM header for the first chunk
+                    await temp_file.write(b'\x1A\x45\xDF\xA3')  # EBML header
+                    await temp_file.write(b'\x42\x86')  # DocType
+                    await temp_file.write(b'\x81\x01')  # DocTypeVersion
+                    await temp_file.write(b'\x42\xF7\x81\x01')  # DocTypeReadVersion
+                    self.is_first_chunk = False
                 await temp_file.write(audio_chunk)
             
             if self.chunk_count % settings.CHUNKS_COUNT_NEED_FOR_TRANSCRIPTION == 0:
