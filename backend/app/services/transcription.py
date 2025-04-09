@@ -133,114 +133,43 @@ async def transcribe_audio(audio_data: Union[bytes, BytesIO]) -> Optional[str]:
     Returns:
         Transcribed text or None if transcription fails
     """
-    # Create temporary files
-    temp_webm = None
-    temp_wav = None
-    
     try:
         # Convert BytesIO to bytes if necessary
         if isinstance(audio_data, BytesIO):
             audio_data = audio_data.getvalue()
-        
-        # Create a temporary file for the WebM data
-        with tempfile.NamedTemporaryFile(suffix='.webm', delete=False) as temp_webm:
-            temp_webm.write(audio_data)
-            temp_webm_path = temp_webm.name
-        
-        # Create a temporary file for the converted WAV
-        with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as temp_wav:
-            temp_wav_path = temp_wav.name
-        
-        # First, try to validate the WebM file
+            
+        # Create a temporary file for the audio data
+        with tempfile.NamedTemporaryFile(suffix='.webm', delete=False) as temp_file:
+            temp_file.write(audio_data)
+            temp_file_path = temp_file.name
+            
         try:
-            validate_cmd = [
-                'ffmpeg', '-v', 'error',
-                '-i', temp_webm_path,
-                '-f', 'null', '-'
-            ]
-            subprocess.run(validate_cmd, check=True, capture_output=True, text=True)
-        except subprocess.CalledProcessError as e:
-            logger.error(f"WebM validation failed: {e.stderr}")
-            # If validation fails, try to repair the WebM file
-            repair_cmd = [
-                'ffmpeg', '-y',
-                '-i', temp_webm_path,
-                '-c', 'copy',
-                '-f', 'webm',
-                f'{temp_webm_path}.repaired'
-            ]
-            try:
-                subprocess.run(repair_cmd, check=True, capture_output=True, text=True)
-                os.replace(f'{temp_webm_path}.repaired', temp_webm_path)
-                logger.info("Successfully repaired WebM file")
-            except subprocess.CalledProcessError as repair_e:
-                logger.error(f"WebM repair failed: {repair_e.stderr}")
-                raise ValueError(f"Failed to repair WebM file: {repair_e.stderr}")
-        
-        # Convert to WAV format with specific parameters
-        convert_cmd = [
-            'ffmpeg', '-y',
-            '-i', temp_webm_path,
-            '-acodec', 'pcm_s16le',  # 16-bit PCM
-            '-ar', '16000',          # 16kHz sample rate
-            '-ac', '1',              # Mono audio
-            '-f', 'wav',
-            temp_wav_path
-        ]
-        
-        try:
-            subprocess.run(convert_cmd, check=True, capture_output=True, text=True)
-        except subprocess.CalledProcessError as e:
-            logger.error(f"FFmpeg conversion failed: {e.stderr}")
-            # Try alternative conversion method
-            alt_convert_cmd = [
-                'ffmpeg', '-y',
-                '-f', 'webm',
-                '-i', temp_webm_path,
-                '-acodec', 'pcm_s16le',
-                '-ar', '16000',
-                '-ac', '1',
-                '-f', 'wav',
-                temp_wav_path
-            ]
-            try:
-                subprocess.run(alt_convert_cmd, check=True, capture_output=True, text=True)
-            except subprocess.CalledProcessError as alt_e:
-                logger.error(f"Alternative FFmpeg conversion failed: {alt_e.stderr}")
-                raise ValueError(f"Failed to convert audio format: {alt_e.stderr}")
-        
-        # Verify the converted file exists and has content
-        if not os.path.exists(temp_wav_path) or os.path.getsize(temp_wav_path) == 0:
-            raise ValueError("Converted audio file does not exist or is empty")
-        
-        # Transcribe using OpenAI's Whisper API
-        with open(temp_wav_path, 'rb') as audio_file:
-            try:
-                response = await openai.Audio.atranscribe(
+            # Open the audio file
+            with open(temp_file_path, "rb") as audio_file:
+                # Call OpenAI's Whisper API
+                transcript = openai.Audio.transcribe(
                     "whisper-1",
                     audio_file,
-                    api_key=settings.OPENAI_API_KEY
+                    language="en"
                 )
-                return response['text']
-            except Exception as e:
-                logger.error(f"OpenAI transcription failed: {str(e)}")
-                raise ValueError(f"Transcription failed: {str(e)}")
                 
+            return transcript.text
+            
+        except Exception as e:
+            logger.error(f"Error in transcription: {str(e)}")
+            return None
+            
     except Exception as e:
-        logger.error(f"Error in transcribe_audio: {str(e)}")
-        raise
+        logger.error(f"Error processing audio: {str(e)}")
+        return None
         
     finally:
-        # Clean up temporary files
+        # Clean up temporary file
         try:
-            if temp_webm and os.path.exists(temp_webm_path):
-                os.unlink(temp_webm_path)
-            if temp_wav and os.path.exists(temp_wav_path):
-                os.unlink(temp_wav_path)
-            if os.path.exists(f'{temp_webm_path}.repaired'):
-                os.unlink(f'{temp_webm_path}.repaired')
+            if 'temp_file_path' in locals():
+                os.unlink(temp_file_path)
         except Exception as e:
-            logger.error(f"Error cleaning up temporary files: {str(e)}")
+            logger.error(f"Error cleaning up temporary file: {str(e)}")
 
 
 async def get_transcriptionsZZ(

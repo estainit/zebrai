@@ -217,8 +217,22 @@ active_connections: dict[str, WebSocket] = {}
 @app.websocket("/ws/{session_id}")
 async def websocket_endpoint(websocket: WebSocket, session_id: str, db: AsyncSession = Depends(get_db_session)):
     """Handles WebSocket connections for audio recording with real-time transcription."""
-    websocket_service = WebSocketService(db)
-    await websocket_service.handle_connection(websocket, session_id)
+    logger.info(f"New WebSocket connection request for session: {session_id}")
+    
+    try:
+        # Create WebSocket service instance
+        websocket_service = WebSocketService(db)
+        
+        # Handle the connection
+        await websocket_service.handle_connection(websocket, session_id)
+    except Exception as e:
+        logger.error(f"Error in WebSocket endpoint: {e}")
+        try:
+            await websocket.close(code=1011, reason=str(e))
+        except:
+            pass
+    finally:
+        logger.info(f"WebSocket connection closed for session: {session_id}")
 
 # --- Basic HTTP Endpoint (Optional) ---
 @app.get("/")

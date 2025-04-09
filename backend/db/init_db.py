@@ -25,7 +25,6 @@ def get_db_connection(dbname=None):
     try:
         print(f"DB_NAME: {DB_NAME}")
         print(f"DB_PASS: {DB_PASS}")
-        # pdb.set_trace()  # This will pause execution here # Add breakpoint here
         conn = psycopg2.connect(
             dbname=dbname or DB_NAME,
             user=DB_USER,

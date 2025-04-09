@@ -14,6 +14,9 @@ run backend server:
     uvicorn main:app --host 0.0.0.0 --port 8000 --reload
     python3 -m uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 
+run backend debug server:
+    python3 debug_server.py
+
 kill all backend instances:
     pkill -f "uvicorn main:app"
 
@@ -34,6 +37,13 @@ install what backend needs (inside venv):
 
         4. Run with coverage: pytest backend/tests/ --cov=app
         5. Run with benchmarks: pytest backend/tests/ --benchmark-only
+
+
+
+
+python install and run debug sever:
+    pip install debugpy uvicorn
+    cd backend && python3 debug_server.py
 
 chnage password:
     curl -X POST http://localhost:8000/api/reset-password -H "Content-Type: application/json" -d '{"username": "admin", "new_password": "admin"}'
