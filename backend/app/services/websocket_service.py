@@ -200,12 +200,10 @@ class WebSocketService:
                 for chunk in recent_chunks:
                     f.write(chunk[4:] if chunk.startswith(self.webm_header) else chunk)
 
+            # Use a simpler FFmpeg command that preserves the original format
             ffmpeg_cmd = [
                 'ffmpeg', '-i', input_file,
-                '-c:a', 'libvorbis',
-                '-b:a', '128k',
-                '-ar', '16000',
-                '-ac', '1',
+                '-c:a', 'copy',  # Copy the audio stream without re-encoding
                 output_file
             ]
 
@@ -246,12 +244,10 @@ class WebSocketService:
                 for chunk in self.accumulated_chunks:
                     f.write(chunk[4:] if chunk.startswith(self.webm_header) else chunk)
 
+            # Use a simpler FFmpeg command that preserves the original format
             ffmpeg_cmd = [
                 'ffmpeg', '-i', input_file,
-                '-c:a', 'libvorbis',
-                '-b:a', '128k',
-                '-ar', '16000',
-                '-ac', '1',
+                '-c:a', 'copy',  # Copy the audio stream without re-encoding
                 output_file
             ]
 
