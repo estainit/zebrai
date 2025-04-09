@@ -35,7 +35,7 @@ class Settings(BaseSettings):
     
     # File storage
     TEMP_AUDIO_DIR: str = "temp_audio"
-    CHUNKS_COUNT_NEED_FOR_TRANSCRIPTION: int = 5  # Number of chunks to collect before sending to OpenAI
+    CHUNKS_COUNT_NEED_FOR_TRANSCRIPTION: int = 2  # Number of chunks to collect before sending to OpenAI
     
     # Logging
     LOG_LEVEL: str = os.getenv("LOG_LEVEL", "DEBUG")

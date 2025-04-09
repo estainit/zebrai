@@ -3,9 +3,11 @@ import tempfile
 import openai
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
-from typing import List, Optional
+from typing import List, Optional, Union
+from io import BytesIO
 import subprocess
 import io
+import logging
 
 from app.core.config import settings
 from app.core.logging import logger
@@ -13,6 +15,8 @@ from app.models.transcription import transcription_chunks
 
 # Set OpenAI API key
 openai.api_key = settings.OPENAI_API_KEY
+
+logger = logging.getLogger(__name__)
 
 def convert_to_ios_compatible(audio_data: bytes) -> bytes:
     """Convert audio to iOS-compatible format (AAC in MP4 container)"""
@@ -119,142 +123,124 @@ def convert_to_ios_compatible(audio_data: bytes) -> bytes:
 
 
 # --- Audio Transcription Function ---
-async def transcribe_audio(audio_file):
-    """Transcribe audio using OpenAI's Whisper API."""
-    temp_file_path = None
-    converted_file_path = None
+async def transcribe_audio(audio_data: Union[bytes, BytesIO]) -> Optional[str]:
+    """
+    Transcribe audio data using OpenAI's Whisper API.
+    
+    Args:
+        audio_data: Raw audio bytes in WebM format or BytesIO object
+        
+    Returns:
+        Transcribed text or None if transcription fails
+    """
+    # Create temporary files
+    temp_webm = None
+    temp_wav = None
+    
     try:
-        # Log the start of transcription
-        logger.info("Starting audio transcription")
+        # Convert BytesIO to bytes if necessary
+        if isinstance(audio_data, BytesIO):
+            audio_data = audio_data.getvalue()
         
-        # Create a temporary file for the audio data
-        with tempfile.NamedTemporaryFile(suffix=".webm", delete=False) as temp_file:
-            # Read the audio data
-            audio_data = audio_file.read()
-            logger.info(f"Read {len(audio_data)} bytes of audio data")
-            
-            # Validate audio data
-            if not audio_data or len(audio_data) < 100:  # Minimum size check
-                logger.error(f"Audio data too small or empty: {len(audio_data)} bytes")
-                raise ValueError("Audio data too small or empty")
-                
-            # Write the audio data
-            temp_file.write(audio_data)
-            temp_file_path = temp_file.name
-            logger.info(f"Created temporary file: {temp_file_path}")
-
-        # Verify the file exists and has content
-        if not os.path.exists(temp_file_path):
-            logger.error("Failed to create temporary audio file")
-            raise ValueError("Failed to create temporary audio file")
-            
-        file_size = os.path.getsize(temp_file_path)
-        logger.info(f"Temporary file size: {file_size} bytes")
+        # Create a temporary file for the WebM data
+        with tempfile.NamedTemporaryFile(suffix='.webm', delete=False) as temp_webm:
+            temp_webm.write(audio_data)
+            temp_webm_path = temp_webm.name
         
-        if file_size < 100:  # Minimum size check
-            logger.error(f"Audio file too small: {file_size} bytes")
-            raise ValueError(f"Audio file too small: {file_size} bytes")
-
-        # Try direct transcription first (Whisper can handle many formats directly)
+        # Create a temporary file for the converted WAV
+        with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as temp_wav:
+            temp_wav_path = temp_wav.name
+        
+        # First, try to validate the WebM file
         try:
-            logger.info("Attempting direct transcription with Whisper API")
-            audio_file.seek(0)  # Reset file pointer
-            response = await openai.Audio.atranscribe("whisper-1", audio_file)
-            logger.info("Direct transcription successful")
-            return response.text
-        except Exception as e:
-            logger.warning(f"Direct transcription failed: {str(e)}")
-            logger.info("Falling back to FFmpeg conversion")
-
-        # If direct transcription fails, try converting to WAV format
-        converted_file_path = temp_file_path.replace(".webm", ".wav")
-        logger.info(f"Converting to WAV format: {converted_file_path}")
-        
-        try:
-            # First try with explicit WebM and Opus codec
-            result2 = subprocess.run([
-                "ffmpeg", "-y",
-                "-f", "webm",  # Explicitly specify WebM format
-                "-i", temp_file_path,
-                "-acodec", "pcm_s16le",  # Convert to PCM 16-bit
-                "-ar", "16000",  # Set sample rate to 16kHz
-                "-ac", "1",  # Convert to mono
-                "-f", "wav",  # Force WAV output format
-                converted_file_path
-            ], check=True, capture_output=True, text=True)
-            logger.info("Audio conversion successful with WebM format")
+            validate_cmd = [
+                'ffmpeg', '-v', 'error',
+                '-i', temp_webm_path,
+                '-f', 'null', '-'
+            ]
+            subprocess.run(validate_cmd, check=True, capture_output=True, text=True)
         except subprocess.CalledProcessError as e:
-            logger.warning(f"First conversion attempt failed: {e.stderr}")
-            logger.info("Trying alternative conversion method")
-            
-            # Try alternative conversion method with automatic format detection
+            logger.error(f"WebM validation failed: {e.stderr}")
+            # If validation fails, try to repair the WebM file
+            repair_cmd = [
+                'ffmpeg', '-y',
+                '-i', temp_webm_path,
+                '-c', 'copy',
+                '-f', 'webm',
+                f'{temp_webm_path}.repaired'
+            ]
             try:
-                result2 = subprocess.run([
-                    "ffmpeg", "-y",
-                    "-i", temp_file_path,
-                    "-acodec", "pcm_s16le",  # Convert to PCM 16-bit
-                    "-ar", "16000",  # Set sample rate to 16kHz
-                    "-ac", "1",  # Convert to mono
-                    "-f", "wav",  # Force WAV output format
-                    converted_file_path
-                ], check=True, capture_output=True, text=True)
-                logger.info("Audio conversion successful with automatic format detection")
-            except subprocess.CalledProcessError as e:
-                logger.error(f"FFmpeg conversion error: {e.stderr}")
-                logger.error(f"FFmpeg stdout: {e.stdout}")
-                
-                # Try one more time with raw format and explicit parameters for WebM/Opus
-                try:
-                    logger.info("Trying raw format conversion with WebM/Opus parameters")
-                    result2 = subprocess.run([
-                        "ffmpeg", "-y",
-                        "-f", "webm",  # WebM format
-                        "-acodec", "libopus",  # Opus codec
-                        "-i", temp_file_path,
-                        "-acodec", "pcm_s16le",  # Output codec
-                        "-ar", "16000",  # Output sample rate
-                        "-ac", "1",  # Output channels
-                        "-f", "wav",  # Output format
-                        converted_file_path
-                    ], check=True, capture_output=True, text=True)
-                    logger.info("Audio conversion successful with WebM/Opus parameters")
-                except subprocess.CalledProcessError as e:
-                    logger.error(f"All conversion attempts failed: {e.stderr}")
-                    raise ValueError(f"Failed to convert audio format: {e.stderr}")
-
-        # Verify the converted file exists and has content
-        if not os.path.exists(converted_file_path):
-            raise ValueError("Converted audio file does not exist")
-            
-        converted_file_size = os.path.getsize(converted_file_path)
-        logger.info(f"Converted file size: {converted_file_size} bytes")
+                subprocess.run(repair_cmd, check=True, capture_output=True, text=True)
+                os.replace(f'{temp_webm_path}.repaired', temp_webm_path)
+                logger.info("Successfully repaired WebM file")
+            except subprocess.CalledProcessError as repair_e:
+                logger.error(f"WebM repair failed: {repair_e.stderr}")
+                raise ValueError(f"Failed to repair WebM file: {repair_e.stderr}")
         
-        if converted_file_size < 100:  # Minimum size check
-            raise ValueError(f"Converted audio file too small: {converted_file_size} bytes")
-
-        # Open the converted file for transcription
-        with open(converted_file_path, "rb") as audio_file:
-            logger.info("Calling OpenAI Whisper API")
-            # Call OpenAI's Whisper API for transcription
-            response = await openai.Audio.atranscribe("whisper-1", audio_file)
-            logger.info("Received response from OpenAI Whisper API")
-            
-            # Return the transcribed text
-            return response.text
-            
+        # Convert to WAV format with specific parameters
+        convert_cmd = [
+            'ffmpeg', '-y',
+            '-i', temp_webm_path,
+            '-acodec', 'pcm_s16le',  # 16-bit PCM
+            '-ar', '16000',          # 16kHz sample rate
+            '-ac', '1',              # Mono audio
+            '-f', 'wav',
+            temp_wav_path
+        ]
+        
+        try:
+            subprocess.run(convert_cmd, check=True, capture_output=True, text=True)
+        except subprocess.CalledProcessError as e:
+            logger.error(f"FFmpeg conversion failed: {e.stderr}")
+            # Try alternative conversion method
+            alt_convert_cmd = [
+                'ffmpeg', '-y',
+                '-f', 'webm',
+                '-i', temp_webm_path,
+                '-acodec', 'pcm_s16le',
+                '-ar', '16000',
+                '-ac', '1',
+                '-f', 'wav',
+                temp_wav_path
+            ]
+            try:
+                subprocess.run(alt_convert_cmd, check=True, capture_output=True, text=True)
+            except subprocess.CalledProcessError as alt_e:
+                logger.error(f"Alternative FFmpeg conversion failed: {alt_e.stderr}")
+                raise ValueError(f"Failed to convert audio format: {alt_e.stderr}")
+        
+        # Verify the converted file exists and has content
+        if not os.path.exists(temp_wav_path) or os.path.getsize(temp_wav_path) == 0:
+            raise ValueError("Converted audio file does not exist or is empty")
+        
+        # Transcribe using OpenAI's Whisper API
+        with open(temp_wav_path, 'rb') as audio_file:
+            try:
+                response = await openai.Audio.atranscribe(
+                    "whisper-1",
+                    audio_file,
+                    api_key=settings.OPENAI_API_KEY
+                )
+                return response['text']
+            except Exception as e:
+                logger.error(f"OpenAI transcription failed: {str(e)}")
+                raise ValueError(f"Transcription failed: {str(e)}")
+                
     except Exception as e:
-        logger.error(f"Transcription error: {str(e)}")
-        raise ValueError(f"Transcription failed: {str(e)}")
+        logger.error(f"Error in transcribe_audio: {str(e)}")
+        raise
         
     finally:
-        # Clean up the temporary files if they exist
-        for file_path in [temp_file_path, converted_file_path]:
-            if file_path and os.path.exists(file_path):
-                try:
-                    os.unlink(file_path)
-                    logger.info(f"Cleaned up temporary file: {file_path}")
-                except Exception as e:
-                    logger.error(f"Failed to cleanup temp file {file_path}: {e}")
+        # Clean up temporary files
+        try:
+            if temp_webm and os.path.exists(temp_webm_path):
+                os.unlink(temp_webm_path)
+            if temp_wav and os.path.exists(temp_wav_path):
+                os.unlink(temp_wav_path)
+            if os.path.exists(f'{temp_webm_path}.repaired'):
+                os.unlink(f'{temp_webm_path}.repaired')
+        except Exception as e:
+            logger.error(f"Error cleaning up temporary files: {str(e)}")
 
 
 async def get_transcriptionsZZ(

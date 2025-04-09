@@ -145,12 +145,8 @@ class WebSocketService:
                 
             logger.info(f"Processing {len(recent_chunks)} chunks for transcription")
             
-            # Create a BytesIO object for the audio data
-            audio_io = io.BytesIO(combined_audio)
-            audio_io.seek(0)
-            
             # Transcribe the audio
-            transcript = await transcribe_audio(audio_io)
+            transcript = await transcribe_audio(combined_audio)
             logger.info(f"Transcription result: {transcript}")
             
             # Save to database
@@ -207,12 +203,8 @@ class WebSocketService:
                 
             logger.info("Processing final recording")
             
-            # Create a BytesIO object for the audio data
-            audio_io = io.BytesIO(complete_audio)
-            audio_io.seek(0)
-            
             # Transcribe the complete audio
-            transcript = await transcribe_audio(audio_io)
+            transcript = await transcribe_audio(complete_audio)
             logger.info(f"Final transcription result: {transcript}")
             
             # Save to database
