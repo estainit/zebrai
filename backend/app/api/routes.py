@@ -8,7 +8,7 @@ from app.core.security import verify_token
 from app.db.session import get_db_session
 from app.services.auth import authenticate_user, reset_password
 from app.services.transcription import (
-    get_transcriptions,
+    get_transcriptionsZZ,
     delete_transcription,
     delete_multiple_transcriptions,
     get_transcription_audio
@@ -67,7 +67,7 @@ async def get_transcriptions_endpoint(
 ):
     """Get transcriptions with pagination."""
     try:
-        return await get_transcriptions(db, page, per_page)
+        return await get_transcriptionsZZ(db, page, per_page)
     except Exception as e:
         logger.error(f"Error fetching transcriptions: {str(e)}")
         raise HTTPException(

@@ -5,7 +5,7 @@ from sqlalchemy import select, func
 
 from app.services.transcription import (
     transcribe_audio,
-    get_transcriptions,
+    get_transcriptionsZZ,
     delete_transcription,
     delete_multiple_transcriptions,
     get_transcription_audio,
@@ -50,7 +50,7 @@ async def test_transcribe_audio_error():
 async def test_get_transcriptions_empty(db_session):
     """Test getting transcriptions with empty database."""
     # Get transcriptions
-    result = await get_transcriptions(db_session)
+    result = await get_transcriptionsZZ(db_session)
     
     # Verify the result
     assert result["items"] == []
@@ -88,7 +88,7 @@ async def test_get_transcriptions_with_data(db_session):
     await db_session.commit()
     
     # Get transcriptions
-    result = await get_transcriptions(db_session)
+    result = await get_transcriptionsZZ(db_session)
     
     # Verify the result
     assert len(result["items"]) == 3
@@ -122,7 +122,7 @@ async def test_get_transcriptions_pagination(db_session):
     await db_session.commit()
     
     # Get transcriptions with pagination
-    result = await get_transcriptions(db_session, page=2, per_page=10)
+    result = await get_transcriptionsZZ(db_session, page=2, per_page=10)
     
     # Verify the result
     assert len(result["items"]) == 10
