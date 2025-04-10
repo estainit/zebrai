@@ -119,7 +119,7 @@ class WebSocketService:
                 
                 # Try to transcribe the first chunk directly
                 try:
-                    new_transcript = await transcribe_audio(audio_byte)
+                    new_transcript = await transcribe_audio(audio_byte, self.client_type)
                     if new_transcript:
                         await websocket.send_json({
                             "type": "transcript",
@@ -220,7 +220,7 @@ class WebSocketService:
                 processed_audio = f.read()
 
             # Transcribe the processed audio
-            new_transcript = await transcribe_audio(processed_audio)
+            new_transcript = await transcribe_audio(processed_audio, self.client_type)
             
             if new_transcript:
                 # Send transcript to client without updating database
@@ -265,7 +265,7 @@ class WebSocketService:
                 processed_audio = f.read()
 
             # Transcribe the processed audio
-            new_transcript = await transcribe_audio(processed_audio)
+            new_transcript = await transcribe_audio(processed_audio, self.client_type)
             
             if new_transcript:
                 # Get the current transcript
@@ -345,7 +345,7 @@ class WebSocketService:
                 processed_audio = f.read()
 
             # Transcribe the processed audio
-            new_transcript = await transcribe_audio(processed_audio)
+            new_transcript = await transcribe_audio(processed_audio, self.client_type)
             
             if new_transcript:
                 # Send transcript to client without updating database

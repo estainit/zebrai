@@ -27,26 +27,13 @@ from app.core.config import settings
 from app.services.transcription import transcribe_audio
 from app import create_app
 from app.services.websocket_service import WebSocketService
+from app.core.logging import logger
 
 # --- Configuration & Setup ---
 load_dotenv()
 openai.api_key = os.getenv("OPENAI_API_KEY")
 if not openai.api_key:
     raise ValueError("OPENAI_API_KEY environment variable not set")
-
-# Configure logging to show all levels and use a simple format
-logging.basicConfig(
-    level=logging.DEBUG,  # Set to DEBUG to see all logs
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.StreamHandler()  # This ensures logs go to stdout
-    ]
-)
-logger = logging.getLogger(__name__)
-
-# Add a test log message to verify logging is working
-logger.info("Backend server starting up...")
-logger.debug("Debug logging is enabled")
 
 # Constants
 CHUNKS_COUNT_NEED_FOR_TRANSCRIPTION = 3  # Number of chunks to process for transcription

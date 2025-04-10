@@ -123,12 +123,13 @@ def convert_to_ios_compatible(audio_data: bytes) -> bytes:
 
 
 # --- Audio Transcription Function ---
-async def transcribe_audio(audio_data: Union[bytes, BytesIO]) -> Optional[str]:
+async def transcribe_audio(audio_data: Union[bytes, BytesIO], client_type: str = "unknown") -> Optional[str]:
     """
     Transcribe audio data using OpenAI's Whisper API.
     
     Args:
         audio_data: Raw audio bytes in WebM format or BytesIO object
+        client_type: Type of client sending the audio (e.g., 'ios', 'web')
         
     Returns:
         Transcribed text or None if transcription fails
@@ -144,13 +145,37 @@ async def transcribe_audio(audio_data: Union[bytes, BytesIO]) -> Optional[str]:
             temp_file_path = temp_file.name
             
         try:
-            # Open the audio file
-            with open(temp_file_path, "rb") as audio_file:
-                # Call OpenAI's Whisper API without language parameter to enable auto-detection
-                transcript = openai.Audio.transcribe(
-                    "whisper-1",
-                    audio_file
-                )
+            # For iOS devices, we need to convert the audio to a compatible format
+            if client_type.lower() == 'ios':
+                logger.info("Processing iOS audio format")
+                # Convert to WAV first
+                wav_path = temp_file_path + '.wav'
+                wav_cmd = [
+                    'ffmpeg', '-y',
+                    '-i', temp_file_path,
+                    '-acodec', 'pcm_s16le',
+                    '-ar', '44100',
+                    '-ac', '2',
+                    wav_path
+                ]
+                subprocess.run(wav_cmd, check=True, capture_output=True)
+                
+                # Use the WAV file for transcription
+                with open(wav_path, "rb") as audio_file:
+                    transcript = openai.Audio.transcribe(
+                        "whisper-1",
+                        audio_file
+                    )
+                
+                # Clean up the WAV file
+                os.unlink(wav_path)
+            else:
+                # For non-iOS devices, use the original file
+                with open(temp_file_path, "rb") as audio_file:
+                    transcript = openai.Audio.transcribe(
+                        "whisper-1",
+                        audio_file
+                    )
                 
             return transcript.text
             
