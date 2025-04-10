@@ -22,7 +22,7 @@ from jwt.exceptions import InvalidTokenError
 import io
 
 from database import engine, get_db_session
-from models import transcription_chunks, users, create_tables, User
+from app.models import transcription_chunks, users, create_tables, User
 from app.core.config import settings
 from app.services.transcription import transcribe_audio
 from app import create_app
