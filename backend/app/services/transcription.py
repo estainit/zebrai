@@ -148,17 +148,37 @@ async def transcribe_audio(audio_data: Union[bytes, BytesIO], client_type: str =
             # For iOS devices, we need to convert the audio to a compatible format
             if client_type.lower() == 'ios':
                 logger.info("Processing iOS audio format")
-                # Convert to WAV first
+                # First convert to WAV with specific settings for iOS audio
                 wav_path = temp_file_path + '.wav'
                 wav_cmd = [
                     'ffmpeg', '-y',
                     '-i', temp_file_path,
                     '-acodec', 'pcm_s16le',
-                    '-ar', '44100',
-                    '-ac', '2',
+                    '-ar', '16000',  # Use 16kHz for better Whisper compatibility
+                    '-ac', '1',      # Convert to mono
+                    '-f', 'wav',
                     wav_path
                 ]
-                subprocess.run(wav_cmd, check=True, capture_output=True)
+                logger.info(f"Running WAV conversion: {' '.join(wav_cmd)}")
+                result = subprocess.run(wav_cmd, capture_output=True, text=True)
+                
+                if result.returncode != 0:
+                    logger.error(f"WAV conversion failed: {result.stderr}")
+                    # Try fallback conversion
+                    fallback_cmd = [
+                        'ffmpeg', '-y',
+                        '-i', temp_file_path,
+                        '-acodec', 'pcm_s16le',
+                        '-ar', '44100',
+                        '-ac', '1',
+                        '-f', 'wav',
+                        wav_path
+                    ]
+                    logger.info(f"Running fallback WAV conversion: {' '.join(fallback_cmd)}")
+                    result = subprocess.run(fallback_cmd, capture_output=True, text=True)
+                    if result.returncode != 0:
+                        logger.error(f"Fallback WAV conversion failed: {result.stderr}")
+                        raise Exception("WAV conversion failed")
                 
                 # Use the WAV file for transcription
                 with open(wav_path, "rb") as audio_file:

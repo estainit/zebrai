@@ -136,6 +136,148 @@ class WebSocketService:
 
             # For subsequent chunks
             try:
+                # For iOS devices, we need to handle the chunks differently
+                if self.client_type.lower() == 'ios':
+                    # For iOS, we'll process each chunk individually for transcription
+                    # First, save the chunk to a temporary file with .m4a extension
+                    temp_file = os.path.join(self.temp_dir, f"ios_chunk_{self.chunk_count}.m4a")
+                    with open(temp_file, 'wb') as f:
+                        f.write(audio_byte)
+                    
+                    # Try multiple conversion approaches
+                    wav_file = temp_file + '.wav'
+                    success = False
+                    
+                    # Approach 1: Try direct transcription without conversion
+                    try:
+                        logger.info("Trying direct transcription without conversion")
+                        new_transcript = await transcribe_audio(audio_byte, self.client_type)
+                        if new_transcript:
+                            await websocket.send_json({
+                                "type": "transcript",
+                                "text": new_transcript
+                            })
+                            logger.info(f"Direct transcription successful: {new_transcript}")
+                            success = True
+                    except Exception as e:
+                        logger.error(f"Direct transcription failed: {e}")
+                    
+                    # Approach 2: Try converting from M4A to WAV with fragmented MP4 handling
+                    if not success:
+                        try:
+                            wav_cmd = [
+                                'ffmpeg', '-y',
+                                '-f', 'mp4',  # Force input format
+                                '-movflags', '+frag_keyframe+empty_moov',  # Handle fragmented MP4
+                                '-i', temp_file,
+                                '-acodec', 'pcm_s16le',
+                                '-ar', '44100',
+                                '-ac', '1',
+                                '-f', 'wav',
+                                wav_file
+                            ]
+                            logger.info(f"Trying M4A to WAV conversion with fragmented MP4 handling: {' '.join(wav_cmd)}")
+                            result = subprocess.run(wav_cmd, capture_output=True, text=True)
+                            if result.returncode == 0:
+                                with open(wav_file, 'rb') as f:
+                                    wav_data = f.read()
+                                new_transcript = await transcribe_audio(wav_data, self.client_type)
+                                if new_transcript:
+                                    await websocket.send_json({
+                                        "type": "transcript",
+                                        "text": new_transcript
+                                    })
+                                    logger.info(f"M4A to WAV conversion successful: {new_transcript}")
+                                    success = True
+                            else:
+                                logger.error(f"M4A to WAV conversion failed: {result.stderr}")
+                        except Exception as e:
+                            logger.error(f"M4A to WAV conversion failed: {e}")
+                    
+                    # Approach 3: Try extracting raw audio with fragmented MP4 handling
+                    if not success:
+                        try:
+                            raw_file = temp_file + '.raw'
+                            raw_cmd = [
+                                'ffmpeg', '-y',
+                                '-f', 'mp4',  # Force input format
+                                '-movflags', '+frag_keyframe+empty_moov',  # Handle fragmented MP4
+                                '-i', temp_file,
+                                '-f', 's16le',
+                                '-ar', '44100',
+                                '-ac', '1',
+                                raw_file
+                            ]
+                            logger.info(f"Trying raw audio extraction with fragmented MP4 handling: {' '.join(raw_cmd)}")
+                            result = subprocess.run(raw_cmd, capture_output=True, text=True)
+                            if result.returncode == 0:
+                                with open(raw_file, 'rb') as f:
+                                    raw_data = f.read()
+                                new_transcript = await transcribe_audio(raw_data, self.client_type)
+                                if new_transcript:
+                                    await websocket.send_json({
+                                        "type": "transcript",
+                                        "text": new_transcript
+                                    })
+                                    logger.info(f"Raw audio extraction successful: {new_transcript}")
+                                    success = True
+                            else:
+                                logger.error(f"Raw audio extraction failed: {result.stderr}")
+                        except Exception as e:
+                            logger.error(f"Raw audio extraction failed: {e}")
+                    
+                    # Approach 4: Try with AAC format and fragmented MP4 handling
+                    if not success:
+                        try:
+                            aac_file = temp_file + '.aac'
+                            aac_cmd = [
+                                'ffmpeg', '-y',
+                                '-f', 'mp4',  # Force input format
+                                '-movflags', '+frag_keyframe+empty_moov',  # Handle fragmented MP4
+                                '-i', temp_file,
+                                '-c:a', 'aac',
+                                '-b:a', '128k',
+                                '-ar', '44100',
+                                '-ac', '1',
+                                aac_file
+                            ]
+                            logger.info(f"Trying AAC conversion with fragmented MP4 handling: {' '.join(aac_cmd)}")
+                            result = subprocess.run(aac_cmd, capture_output=True, text=True)
+                            if result.returncode == 0:
+                                with open(aac_file, 'rb') as f:
+                                    aac_data = f.read()
+                                new_transcript = await transcribe_audio(aac_data, self.client_type)
+                                if new_transcript:
+                                    await websocket.send_json({
+                                        "type": "transcript",
+                                        "text": new_transcript
+                                    })
+                                    logger.info(f"AAC conversion successful: {new_transcript}")
+                                    success = True
+                            else:
+                                logger.error(f"AAC conversion failed: {result.stderr}")
+                        except Exception as e:
+                            logger.error(f"AAC conversion failed: {e}")
+                    
+                    if not success:
+                        logger.error("All iOS audio processing approaches failed")
+                        # Log the audio chunk details for debugging
+                        logger.error(f"Audio chunk size: {len(audio_byte)}")
+                        logger.error(f"Audio chunk header: {audio_byte[:8].hex()}")
+                    
+                    # Clean up temporary files
+                    try:
+                        if os.path.exists(temp_file):
+                            os.unlink(temp_file)
+                        if os.path.exists(wav_file):
+                            os.unlink(wav_file)
+                        if os.path.exists(raw_file):
+                            os.unlink(raw_file)
+                        if os.path.exists(aac_file):
+                            os.unlink(aac_file)
+                    except Exception as e:
+                        logger.error(f"Error cleaning up iOS temporary files: {e}")
+                
                 # Save the chunk to a temporary file
                 chunk_file = os.path.join(self.temp_dir, f"chunk_{len(self.chunk_files)}.webm")
                 with open(chunk_file, 'wb') as f:
@@ -166,12 +308,13 @@ class WebSocketService:
                 await self.db.commit()
                 logger.info(f"Appended chunk to transcription: {self.current_transcription_id}")
 
-                # Process chunks based on count
-                if self.chunk_count % LOW_CHUNK_COUNT == 0:
-                    await self._process_low_chunk_count(websocket)
-                
-                if self.chunk_count % HI_CHUNK_COUNT == 0:
-                    await self._process_hi_chunk_count(websocket)
+                # Process chunks based on count (only for non-iOS devices)
+                if self.client_type.lower() != 'ios':
+                    if self.chunk_count % LOW_CHUNK_COUNT == 0:
+                        await self._process_low_chunk_count(websocket)
+                    
+                    if self.chunk_count % HI_CHUNK_COUNT == 0:
+                        await self._process_hi_chunk_count(websocket)
 
             except Exception as e:
                 await self.db.rollback()
