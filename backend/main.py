@@ -22,7 +22,7 @@ from jwt.exceptions import InvalidTokenError
 import io
 
 from database import engine, get_db_session
-from app.models import transcription_chunks, users, create_tables, User
+from app.models import voice_records, users, create_tables, User
 from app.core.config import settings
 from app.services.transcription import transcribe_audio
 from app import create_app
@@ -269,30 +269,30 @@ async def get_transcriptions(
     offset = (page - 1) * per_page
     
     # Base query
-    query = select(transcription_chunks)
+    query = select(voice_records)
     
     # Check if user_id column exists
     try:
         # Try to filter by user_id if the column exists
-        query = query.where(transcription_chunks.c.user_id == current_user.id)
+        query = query.where(voice_records.c.user_id == current_user.id)
     except AttributeError:
         # If user_id column doesn't exist, return all transcriptions (for backward compatibility)
-        logger.warning("user_id column not found in transcription_chunks table. Returning all transcriptions.")
+        logger.warning("user_id column not found in voice_records table. Returning all transcriptions.")
     
     # Apply time filter
     now = datetime.utcnow()
     if time_filter == "today":
         # Last 24 hours
         start_time = now - timedelta(days=1)
-        query = query.where(transcription_chunks.c.created_at >= start_time)
+        query = query.where(voice_records.c.created_at >= start_time)
     elif time_filter == "week":
         # Last 7 days
         start_time = now - timedelta(days=7)
-        query = query.where(transcription_chunks.c.created_at >= start_time)
+        query = query.where(voice_records.c.created_at >= start_time)
     elif time_filter == "month":
         # Last 30 days
         start_time = now - timedelta(days=30)
-        query = query.where(transcription_chunks.c.created_at >= start_time)
+        query = query.where(voice_records.c.created_at >= start_time)
     
     # Get total count after applying filters
     count_query = select(func.count()).select_from(query.subquery())
@@ -303,7 +303,7 @@ async def get_transcriptions(
     total_pages = (total_count + per_page - 1) // per_page
     
     # Get paginated results
-    query = query.order_by(transcription_chunks.c.id.desc()).offset(offset).limit(per_page)
+    query = query.order_by(voice_records.c.id.desc()).offset(offset).limit(per_page)
     result = await db.execute(query)
     transcriptions = result.fetchall()
     
@@ -314,7 +314,7 @@ async def get_transcriptions(
         items.append({
             "id": transcription.id,
             "transcript": transcription.transcript,
-            "file_size": format_file_size(len(transcription.audio_chunk)) if transcription.audio_chunk else "0 B",
+            "file_size": format_file_size(len(transcription.audio_byte)) if transcription.audio_byte else "0 B",
             "created_at": transcription.created_at.isoformat() if transcription.created_at else None,
             "row_number": start_row + i
         })
@@ -351,7 +351,7 @@ async def delete_transcription(
 ):
     """Delete a single transcription chunk."""
     try:
-        query = transcription_chunks.delete().where(transcription_chunks.c.id == transcription_id)
+        query = voice_records.delete().where(voice_records.c.id == transcription_id)
         await db.execute(query)
         await db.commit()
         return {"message": "Transcription deleted successfully"}
@@ -368,7 +368,7 @@ async def delete_multiple_transcriptions(
 ):
     """Delete multiple transcription chunks."""
     try:
-        query = transcription_chunks.delete().where(transcription_chunks.c.id.in_(request.ids))
+        query = voice_records.delete().where(voice_records.c.id.in_(request.ids))
         await db.execute(query)
         await db.commit()
         return {"message": "Transcriptions deleted successfully"}
@@ -385,7 +385,7 @@ async def get_transcription_audio(
 ):
     """Get the audio chunk for a transcription."""
     try:
-        query = select(transcription_chunks.c.audio_chunk).where(transcription_chunks.c.id == transcription_id)
+        query = select(voice_records.c.audio_byte).where(voice_records.c.id == transcription_id)
         result = await db.execute(query)
         record = result.fetchone()
         
@@ -394,7 +394,7 @@ async def get_transcription_audio(
         
         # Return the audio data with proper headers
         return Response(
-            content=record.audio_chunk,
+            content=record.audio_byte,
             media_type="audio/webm;codecs=opus",
             headers={
                 "Content-Disposition": f"attachment; filename=transcription_{transcription_id}.webm",

@@ -10,7 +10,7 @@ from app.services.transcription import (
     get_transcription_audio,
     format_file_size
 )
-from app.models.transcription import transcription_chunks
+from app.models.transcription import voice_records
 
 @pytest.mark.asyncio
 async def test_transcribe_audio():
@@ -51,16 +51,16 @@ async def test_delete_transcription_success(db_session):
     # Insert test data
     test_data = {
         "session_id": "test-session",
-        "audio_chunk": b"test audio data",
+        "audio_byte": b"test audio data",
         "transcript": "Test transcription"
     }
     
-    query = transcription_chunks.insert().values(**test_data)
+    query = voice_records.insert().values(**test_data)
     result = await db_session.execute(query)
     await db_session.commit()
     
     # Get the inserted ID
-    query = select(transcription_chunks).where(transcription_chunks.c.session_id == "test-session")
+    query = select(voice_records).where(voice_records.c.session_id == "test-session")
     result = await db_session.execute(query)
     transcription = result.fetchone()
     transcription_id = transcription.id
@@ -72,7 +72,7 @@ async def test_delete_transcription_success(db_session):
     assert success is True
     
     # Verify the transcription was deleted
-    query = select(transcription_chunks).where(transcription_chunks.c.id == transcription_id)
+    query = select(voice_records).where(voice_records.c.id == transcription_id)
     result = await db_session.execute(query)
     transcription = result.fetchone()
     
@@ -94,29 +94,29 @@ async def test_delete_multiple_transcriptions_success(db_session):
     test_data = [
         {
             "session_id": "test-session-1",
-            "audio_chunk": b"test audio data 1",
+            "audio_byte": b"test audio data 1",
             "transcript": "Test transcription 1"
         },
         {
             "session_id": "test-session-2",
-            "audio_chunk": b"test audio data 2",
+            "audio_byte": b"test audio data 2",
             "transcript": "Test transcription 2"
         },
         {
             "session_id": "test-session-3",
-            "audio_chunk": b"test audio data 3",
+            "audio_byte": b"test audio data 3",
             "transcript": "Test transcription 3"
         }
     ]
     
     for data in test_data:
-        query = transcription_chunks.insert().values(**data)
+        query = voice_records.insert().values(**data)
         await db_session.execute(query)
     
     await db_session.commit()
     
     # Get the inserted IDs
-    query = select(transcription_chunks).where(transcription_chunks.c.session_id.in_(["test-session-1", "test-session-2"]))
+    query = select(voice_records).where(voice_records.c.session_id.in_(["test-session-1", "test-session-2"]))
     result = await db_session.execute(query)
     transcriptions = result.fetchall()
     transcription_ids = [t.id for t in transcriptions]
@@ -128,14 +128,14 @@ async def test_delete_multiple_transcriptions_success(db_session):
     assert success is True
     
     # Verify the transcriptions were deleted
-    query = select(transcription_chunks).where(transcription_chunks.c.id.in_(transcription_ids))
+    query = select(voice_records).where(voice_records.c.id.in_(transcription_ids))
     result = await db_session.execute(query)
     transcriptions = result.fetchall()
     
     assert len(transcriptions) == 0
     
     # Verify the remaining transcription
-    query = select(transcription_chunks).where(transcription_chunks.c.session_id == "test-session-3")
+    query = select(voice_records).where(voice_records.c.session_id == "test-session-3")
     result = await db_session.execute(query)
     transcription = result.fetchone()
     
@@ -156,16 +156,16 @@ async def test_get_transcription_audio_success(db_session):
     # Insert test data
     test_data = {
         "session_id": "test-session",
-        "audio_chunk": b"test audio data",
+        "audio_byte": b"test audio data",
         "transcript": "Test transcription"
     }
     
-    query = transcription_chunks.insert().values(**test_data)
+    query = voice_records.insert().values(**test_data)
     result = await db_session.execute(query)
     await db_session.commit()
     
     # Get the inserted ID
-    query = select(transcription_chunks).where(transcription_chunks.c.session_id == "test-session")
+    query = select(voice_records).where(voice_records.c.session_id == "test-session")
     result = await db_session.execute(query)
     transcription = result.fetchone()
     transcription_id = transcription.id

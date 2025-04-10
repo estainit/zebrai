@@ -11,7 +11,7 @@ from app.core.config import settings
 from app.core.logging import logger
 from app.core.security import verify_token
 from app.db.session import get_db_session
-from app.models.transcription import transcription_chunks
+from app.models.transcription import voice_records
 from app.services.transcription import transcribe_audio
 
 # Create router

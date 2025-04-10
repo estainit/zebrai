@@ -1,16 +1,18 @@
-from sqlalchemy import Table, Column, Integer, String, LargeBinary, DateTime, Text
-from sqlalchemy.sql import func
+from sqlalchemy import Table, Column, Integer, ForeignKey, LargeBinary, Text, DateTime, JSON, String, Computed
+from datetime import datetime
 
 from app.models.base import metadata
 
 # Transcription chunks table
-transcription_chunks = Table(
-    "transcription_chunks",
+voice_records = Table(
+    "voice_records",
     metadata,
     Column("id", Integer, primary_key=True),
-    Column("session_id", String(100), index=True),  # To group chunks by recording session
-    Column("user_id", Integer, nullable=False),  # Add user_id column
-    Column("audio_chunk", LargeBinary, nullable=False),  # Store raw audio bytes
-    Column("transcript", Text, nullable=True),  # Store transcribed text
-    Column("created_at", DateTime(timezone=True), server_default=func.now())
+    Column("user_id", Integer, ForeignKey("users.id")),
+    Column("audio_byte", LargeBinary),
+    Column("transcript", Text),
+    Column("created_at", DateTime, default=datetime.utcnow),
+    Column("client_info", JSON, nullable=True),  # Store client information as JSON
+    Column("session_id", String, nullable=True),
+    Column("client_type", String)
 ) 

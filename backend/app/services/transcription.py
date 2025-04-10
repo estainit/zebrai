@@ -11,7 +11,7 @@ import logging
 
 from app.core.config import settings
 from app.core.logging import logger
-from app.models.transcription import transcription_chunks
+from app.models.transcription import voice_records
 
 # Set OpenAI API key
 openai.api_key = settings.OPENAI_API_KEY
@@ -175,14 +175,14 @@ async def delete_transcription(
     transcription_id: int
 ):
     """Delete a transcription by ID."""
-    query = select(transcription_chunks).where(transcription_chunks.c.id == transcription_id)
+    query = select(voice_records).where(voice_records.c.id == transcription_id)
     result = await db.execute(query)
     transcription = result.fetchone()
     
     if not transcription:
         return False
     
-    delete_query = transcription_chunks.delete().where(transcription_chunks.c.id == transcription_id)
+    delete_query = voice_records.delete().where(voice_records.c.id == transcription_id)
     await db.execute(delete_query)
     await db.commit()
     
@@ -196,7 +196,7 @@ async def delete_multiple_transcriptions(
     if not ids:
         return False
     
-    delete_query = transcription_chunks.delete().where(transcription_chunks.c.id.in_(ids))
+    delete_query = voice_records.delete().where(voice_records.c.id.in_(ids))
     await db.execute(delete_query)
     await db.commit()
     
@@ -207,7 +207,7 @@ async def get_transcription_audio(
     transcription_id: int
 ):
     """Get audio data for a transcription."""
-    query = select(transcription_chunks).where(transcription_chunks.c.id == transcription_id)
+    query = select(voice_records).where(voice_records.c.id == transcription_id)
     result = await db.execute(query)
     transcription = result.fetchone()
     
@@ -215,7 +215,7 @@ async def get_transcription_audio(
         return None, None
     
     # Convert the audio to iOS-compatible format
-    audio_data = convert_to_ios_compatible(transcription.audio_chunk)
+    audio_data = convert_to_ios_compatible(transcription.audio_byte)
     return audio_data, "audio/mp4"
 
 def format_file_size(size_bytes):

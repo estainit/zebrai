@@ -6,7 +6,7 @@ import subprocess
 from fastapi import WebSocket, WebSocketDisconnect
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update
-from app.models import users, transcription_chunks
+from app.models import users, voice_records
 from app.services.transcription import transcribe_audio
 from app.core.config import settings
 from datetime import datetime
@@ -67,9 +67,9 @@ class WebSocketService:
                 message = await websocket.receive()
                 
                 if message["type"] == "websocket.receive" and "bytes" in message:
-                    audio_chunk = message["bytes"]
-                    if audio_chunk:
-                        await self._process_audio_chunk(websocket, audio_chunk)
+                    audio_byte = message["bytes"]
+                    if audio_byte:
+                        await self._process_audio_byte(websocket, audio_byte)
                         
         except WebSocketDisconnect:
             logger.info("WebSocket disconnected")
@@ -82,24 +82,24 @@ class WebSocketService:
         finally:
             await self.cleanup()
 
-    async def _process_audio_chunk(self, websocket: WebSocket, audio_chunk: bytes):
+    async def _process_audio_byte(self, websocket: WebSocket, audio_byte: bytes):
         """Process a single audio chunk and update the database."""
         try:
             # For the first chunk
             if self.chunk_count == 0:
-                logger.info(f"First chunk received, size: {len(audio_chunk)} bytes")
-                logger.info(f"First chunk header: {audio_chunk[:8].hex()}")
+                logger.info(f"First chunk received, size: {len(audio_byte)} bytes")
+                logger.info(f"First chunk header: {audio_byte[:8].hex()}")
                 
                 # Store the WebM header from the first chunk
-                self.webm_header = audio_chunk[:4]
+                self.webm_header = audio_byte[:4]
                 logger.info(f"Extracted WebM header: {self.webm_header.hex()}")
                 
                 try:
                     # Create new record with the first chunk
-                    insert_query = transcription_chunks.insert().values(
+                    insert_query = voice_records.insert().values(
                         session_id=self.session_id,
                         user_id=self.user.id,
-                        audio_chunk=audio_chunk,
+                        audio_byte=audio_byte,
                         transcript="",
                         created_at=datetime.utcnow()
                     )
@@ -114,7 +114,7 @@ class WebSocketService:
                 
                 # Try to transcribe the first chunk directly
                 try:
-                    new_transcript = await transcribe_audio(audio_chunk)
+                    new_transcript = await transcribe_audio(audio_byte)
                     if new_transcript:
                         await websocket.send_json({
                             "type": "transcript",
@@ -125,7 +125,7 @@ class WebSocketService:
                     logger.error(f"Failed to transcribe first chunk: {e}")
                     # Continue even if transcription fails
                 
-                self.accumulated_chunks.append(audio_chunk)
+                self.accumulated_chunks.append(audio_byte)
                 self.chunk_count += 1
                 return
 
@@ -134,27 +134,27 @@ class WebSocketService:
                 # Save the chunk to a temporary file
                 chunk_file = os.path.join(self.temp_dir, f"chunk_{len(self.chunk_files)}.webm")
                 with open(chunk_file, 'wb') as f:
-                    f.write(audio_chunk)
+                    f.write(audio_byte)
                 self.chunk_files.append(chunk_file)
-                self.accumulated_chunks.append(audio_chunk)
+                self.accumulated_chunks.append(audio_byte)
                 self.chunk_count += 1
 
                 # Get the current audio data from the database
-                query = select(transcription_chunks.c.audio_chunk).where(
-                    transcription_chunks.c.id == self.current_transcription_id
+                query = select(voice_records.c.audio_byte).where(
+                    voice_records.c.id == self.current_transcription_id
                 )
                 result = await self.db.execute(query)
                 current_audio = result.scalar_one()
 
                 # Combine the audio data
-                combined_audio = current_audio + audio_chunk
+                combined_audio = current_audio + audio_byte
 
                 # Update the database with the combined audio
                 update_query = (
-                    update(transcription_chunks)
-                    .where(transcription_chunks.c.id == self.current_transcription_id)
+                    update(voice_records)
+                    .where(voice_records.c.id == self.current_transcription_id)
                     .values(
-                        audio_chunk=combined_audio
+                        audio_byte=combined_audio
                     )
                 )
                 await self.db.execute(update_query)
@@ -172,16 +172,16 @@ class WebSocketService:
                 await self.db.rollback()
                 logger.error(f"Database error processing chunk: {e}")
                 # Continue processing even if database update fails
-                self.accumulated_chunks.append(audio_chunk)
+                self.accumulated_chunks.append(audio_byte)
                 self.chunk_count += 1
 
         except Exception as e:
             logger.error(f"Error processing audio chunk: {e}")
             logger.error(f"Chunk count: {self.chunk_count}")
-            logger.error(f"Chunk size: {len(audio_chunk)}")
-            logger.error(f"Chunk header: {audio_chunk[:8].hex() if audio_chunk else 'None'}")
+            logger.error(f"Chunk size: {len(audio_byte)}")
+            logger.error(f"Chunk header: {audio_byte[:8].hex() if audio_byte else 'None'}")
             # Continue processing even if there's an error
-            self.accumulated_chunks.append(audio_chunk)
+            self.accumulated_chunks.append(audio_byte)
             self.chunk_count += 1
 
     async def _process_low_chunk_count(self, websocket: WebSocket):
@@ -264,8 +264,8 @@ class WebSocketService:
             
             if new_transcript:
                 # Get the current transcript
-                query = select(transcription_chunks.c.transcript).where(
-                    transcription_chunks.c.id == self.current_transcription_id
+                query = select(voice_records.c.transcript).where(
+                    voice_records.c.id == self.current_transcription_id
                 )
                 result = await self.db.execute(query)
                 prev_transcript = result.scalar_one() or ""
@@ -275,8 +275,8 @@ class WebSocketService:
                 
                 # Update the transcript in database
                 update_query = (
-                    update(transcription_chunks)
-                    .where(transcription_chunks.c.id == self.current_transcription_id)
+                    update(voice_records)
+                    .where(voice_records.c.id == self.current_transcription_id)
                     .values(
                         transcript=combined_transcript
                     )

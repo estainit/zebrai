@@ -1,9 +1,11 @@
--- Create transcription_chunks table
-CREATE TABLE IF NOT EXISTS transcription_chunks (
+-- Create voice_records table
+CREATE TABLE IF NOT EXISTS voice_records (
     id SERIAL PRIMARY KEY,
     session_id VARCHAR(100) NOT NULL,
-    user_id INTEGER NOT NULL DEFAULT 1
-    audio_chunk BYTEA NOT NULL,
+    user_id INTEGER NOT NULL DEFAULT 1,
+    audio_byte BYTEA NOT NULL,
+    transcript TEXT,
+    client_type VARCHAR(20),
     transcript TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
@@ -20,7 +22,7 @@ CREATE TABLE IF NOT EXISTS users (
 );
 
 -- Create index on session_id for faster lookups
-CREATE INDEX IF NOT EXISTS idx_transcription_chunks_session_id ON transcription_chunks(session_id);
+CREATE INDEX IF NOT EXISTS idx_voice_records_session_id ON voice_records(session_id);
 
 -- Create index on username for faster lookups
 CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
