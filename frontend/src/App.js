@@ -102,7 +102,23 @@ function App() {
         webSocketRef.current = null;
       }
 
-      const ws = new WebSocket(`${BACKEND_WS_URL}/${newSessionId}`);
+      // Detect client type
+      const userAgent = navigator.userAgent.toLowerCase();
+      let clientType = 'unknown';
+      
+      if (userAgent.includes('iphone') || userAgent.includes('ipad')) {
+        clientType = 'ios';
+      } else if (userAgent.includes('macintosh')) {
+        clientType = 'mac';
+      } else if (userAgent.includes('windows')) {
+        clientType = 'windows';
+      } else if (userAgent.includes('linux')) {
+        clientType = 'linux';
+      } else if (userAgent.includes('android')) {
+        clientType = 'android';
+      }
+
+      const ws = new WebSocket(`${BACKEND_WS_URL}/${newSessionId}?client_type=${clientType}`);
       webSocketRef.current = ws;
       
       ws.onopen = () => {

@@ -316,7 +316,8 @@ async def get_transcriptions(
             "transcript": transcription.transcript,
             "file_size": format_file_size(len(transcription.audio_byte)) if transcription.audio_byte else "0 B",
             "created_at": transcription.created_at.isoformat() if transcription.created_at else None,
-            "row_number": start_row + i
+            "row_number": start_row + i,
+            "client_type": transcription.client_type
         })
     
     # Prepare response

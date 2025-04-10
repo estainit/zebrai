@@ -1,4 +1,4 @@
-from sqlalchemy import Table, Column, Integer, ForeignKey, LargeBinary, Text, DateTime, JSON, String, Computed
+from sqlalchemy import Table, Column, Integer, ForeignKey, LargeBinary, Text, DateTime, JSON, String
 from datetime import datetime
 
 from app.models.base import metadata
@@ -14,5 +14,5 @@ voice_records = Table(
     Column("created_at", DateTime, default=datetime.utcnow),
     Column("client_info", JSON, nullable=True),  # Store client information as JSON
     Column("session_id", String, nullable=True),
-    Column("client_type", String)
+    Column("client_type", String(20))  # Regular VARCHAR column for client type
 ) 

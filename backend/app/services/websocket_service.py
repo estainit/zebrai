@@ -28,6 +28,7 @@ class WebSocketService:
         self.accumulated_chunks = []  # Store chunks in memory
         self.chunk_count = 0
         self.webm_header = None  # Store WebM header from first chunk
+        self.client_type = "unknown"  # Initialize client type
 
     async def handle_connection(self, websocket: WebSocket, session_id: str):
         """Handle the WebSocket connection lifecycle."""
@@ -35,6 +36,9 @@ class WebSocketService:
         self.session_id = session_id
         
         try:
+            # Get client type from query parameters
+            self.client_type = websocket.query_params.get("client_type", "unknown")
+            
             # Authenticate
             auth_message = await websocket.receive_json()
             if auth_message.get("type") != "auth":
@@ -101,7 +105,8 @@ class WebSocketService:
                         user_id=self.user.id,
                         audio_byte=audio_byte,
                         transcript="",
-                        created_at=datetime.utcnow()
+                        created_at=datetime.utcnow(),
+                        client_type=self.client_type
                     )
                     result = await self.db.execute(insert_query)
                     await self.db.commit()

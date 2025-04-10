@@ -503,152 +503,97 @@ const TranscriptionList = ({ credentials }) => {
                     </button>
                 </div>
             </div>
-            <div className="pagination-controls">
-                <button 
-                    onClick={handleFirstPage}
-                    disabled={currentPage === 1}
-                    className="pagination-button"
-                    title="First Page"
+            <div className="time-filter-container">
+                <label htmlFor="time-filter">Time period:</label>
+                <select 
+                    id="time-filter" 
+                    value={timeFilter} 
+                    onChange={handleTimeFilterChange}
+                    className="time-filter-select"
                 >
-                    <MdFirstPage size={20} />
-                </button>
-                <button 
-                    onClick={handlePrevPage}
-                    disabled={currentPage === 1}
-                    className="pagination-button"
-                    title="Previous Page"
-                >
-                    <MdNavigateBefore size={20} />
-                </button>
-                <span>Page {currentPage} of {totalPages}</span>
-                <button 
-                    onClick={handleNextPage}
-                    disabled={currentPage === totalPages}
-                    className="pagination-button"
-                    title="Next Page"
-                >
-                    <MdNavigateNext size={20} />
-                </button>
-                <button 
-                    onClick={handleLastPage}
-                    disabled={currentPage === totalPages}
-                    className="pagination-button"
-                    title="Last Page"
-                >
-                    <MdLastPage size={20} />
-                </button>
-                <div className="per-page-container">
-                    <label htmlFor="per-page">Results per page:</label>
-                    <select 
-                        id="per-page" 
-                        value={perPage} 
-                        onChange={handlePerPageChange}
-                        className="per-page-select"
-                    >
-                        <option value={5}>5</option>
-                        <option value={10}>10</option>
-                        <option value={20}>20</option>
-                        <option value={50}>50</option>
-                        <option value={100}>100</option>
-                    </select>
-                </div>
-                <div className="time-filter-container">
-                    <label htmlFor="time-filter">Time period:</label>
-                    <select 
-                        id="time-filter" 
-                        value={timeFilter} 
-                        onChange={handleTimeFilterChange}
-                        className="time-filter-select"
-                    >
-                        <option value="all">All time</option>
-                        <option value="today">Last 24 hours</option>
-                        <option value="week">Last 7 days</option>
-                        <option value="month">Last 30 days</option>
-                    </select>
-                </div>
+                    <option value="all">All time</option>
+                    <option value="today">Last 24 hours</option>
+                    <option value="week">Last 7 days</option>
+                    <option value="month">Last 30 days</option>
+                </select>
             </div>
-            <table className="transcription-table">
-                <thead>
-                    <tr>
-                        <th>Select</th>
-                        <th>#</th>
-                        <th>ID</th>
-                        <th>Transcript</th>
-                        <th>Size</th>
-                        <th>Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {transcriptions.map((transcription) => (
-                        <tr key={transcription.id}>
-                            <td>
+            <div className="transcription-items">
+                {transcriptions.map((transcription) => (
+                    <div key={transcription.id} className="transcription-item">
+                        <div className="transcription-content">
+                            <div className="transcription-header">
                                 <input
                                     type="checkbox"
                                     checked={selectedIds.includes(transcription.id)}
                                     onChange={() => handleSelect(transcription.id)}
+                                    className="transcription-checkbox"
                                 />
-                            </td>
-                            <td>{transcription.row_number}</td>
-                            <td>{transcription.id}</td>
-                            <td>{transcription.transcript || 'No transcript available'}</td>
-                            <td>{transcription.file_size || '0 B'}</td>
-                            <td>
-                                <div className="audio-controls">
-                                    {playingStates[transcription.id] && !pausedStates[transcription.id] ? (
-                                        <button 
-                                            className="pause-button" 
-                                            onClick={() => handlePause(transcription.id)}
-                                            title="Pause audio"
-                                        >
-                                            <FaPause />
-                                        </button>
-                                    ) : (
-                                        <button 
-                                            className="play-button" 
-                                            onClick={() => handlePlay(transcription.id)}
-                                            title="Play audio"
-                                            disabled={loadingStates[transcription.id]}
-                                        >
-                                            {loadingStates[transcription.id] ? 'Loading...' : <FaPlay />}
-                                        </button>
-                                    )}
-                                    <button 
-                                        className="stop-button" 
-                                        onClick={() => handleStop(transcription.id)}
-                                        title="Stop audio"
-                                        disabled={!playingStates[transcription.id] && !pausedStates[transcription.id]}
-                                    >
-                                        <FaStop />
-                                    </button>
-                                    <div className="progress-container">
-                                        <div 
-                                            className="progress-bar-container"
-                                            onClick={(e) => handleProgressClick(transcription.id, e)}
-                                        >
-                                            <div 
-                                                className="progress-bar" 
-                                                style={{width: `${progressStates[transcription.id] || 0}%`}}
-                                            ></div>
-                                        </div>
-                                        <div className="time-display">
-                                            <span>{formatTime(currentTimeStates[transcription.id] || 0)}</span>
-                                            <span>/</span>
-                                            <span>{formatTime(durationStates[transcription.id] || 0)}</span>
-                                        </div>
-                                    </div>
-                                </div>
+                                <p>{transcription.transcript}</p>
+                            </div>
+                            <div className="transcription-meta">
+                                <span className="file-size">{transcription.file_size}</span>
+                                <span className="created-at">
+                                    {new Date(transcription.created_at).toLocaleString()}
+                                </span>
+                                <span className={`client-type ${transcription.client_type?.toLowerCase()}`}>
+                                    {transcription.client_type || 'Unknown Device'}
+                                </span>
+                            </div>
+                        </div>
+                        <div className="audio-controls">
+                            {playingStates[transcription.id] && !pausedStates[transcription.id] ? (
                                 <button 
-                                    className="delete-button" 
-                                    onClick={() => handleDelete(transcription.id)}
-                                    title="Delete transcription"
+                                    className="pause-button" 
+                                    onClick={() => handlePause(transcription.id)}
+                                    title="Pause audio"
                                 >
-                                    <FaTrash />
+                                    <FaPause />
                                 </button>
-                            </td>
-                        </tr>
-                    ))}
-                </tbody>
-            </table>
+                            ) : (
+                                <button 
+                                    className="play-button" 
+                                    onClick={() => handlePlay(transcription.id)}
+                                    title="Play audio"
+                                    disabled={loadingStates[transcription.id]}
+                                >
+                                    {loadingStates[transcription.id] ? 'Loading...' : <FaPlay />}
+                                </button>
+                            )}
+                            <button 
+                                className="stop-button" 
+                                onClick={() => handleStop(transcription.id)}
+                                title="Stop audio"
+                                disabled={!playingStates[transcription.id] && !pausedStates[transcription.id]}
+                            >
+                                <FaStop />
+                            </button>
+                            <div className="progress-container">
+                                <div 
+                                    className="progress-bar-container"
+                                    onClick={(e) => handleProgressClick(transcription.id, e)}
+                                >
+                                    <div 
+                                        className="progress-bar" 
+                                        style={{width: `${progressStates[transcription.id] || 0}%`}}
+                                    ></div>
+                                </div>
+                                <div className="time-display">
+                                    <span>{formatTime(currentTimeStates[transcription.id] || 0)}</span>
+                                    <span>/</span>
+                                    <span>{formatTime(durationStates[transcription.id] || 0)}</span>
+                                </div>
+                            </div>
+                        </div>
+                        <button 
+                            className="delete-button" 
+                            onClick={() => handleDelete(transcription.id)}
+                            title="Delete transcription"
+                        >
+                            <FaTrash />
+                        </button>
+                    </div>
+                ))}
+            </div>
             {hasMore && (
                 <div className="load-more-container">
                     <button 
