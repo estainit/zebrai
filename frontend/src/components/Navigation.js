@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useRecording } from '../context/RecordingContext';
+import { Link, useLocation } from 'react-router-dom';
 import './Navigation.css';
 
 const Navigation = () => {
@@ -13,6 +14,7 @@ const Navigation = () => {
     } = useRecording();
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [activeMenu, setActiveMenu] = useState(null);
+    const location = useLocation();
 
     const toggleMenu = () => {
         setIsMenuOpen(!isMenuOpen);
@@ -32,7 +34,13 @@ const Navigation = () => {
         <nav className="navigation">
             <div className="nav-container">
                 <div className="nav-brand">
-                    <h1>Zebrai</h1>
+                    <Link to="/" className="brand-link">
+                        <svg className="home-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                            <path d="M9 22V12h6v10" />
+                        </svg>
+                        Zebrai
+                    </Link>
                     <p className="welcome-text">
                         {isLoggedIn ? `Welcome, ${username}!` : 'Welcome to Zebrai'}
                     </p>
@@ -43,16 +51,45 @@ const Navigation = () => {
                         <>
                             <div className="menu-item">
                                 <button 
-                                    className="menu-button"
+                                    className={`menu-button ${activeMenu === 'menu1' ? 'active' : ''}`}
                                     onClick={() => handleMenuClick('menu1')}
                                 >
                                     Menu 1
                                 </button>
                                 {activeMenu === 'menu1' && (
-                                    <div className="submenu">
-                                        <a href="#">Submenu 1.1</a>
-                                        <a href="#">Submenu 1.2</a>
-                                        <a href="#">Submenu 1.3</a>
+                                    <div className="dropdown-menu">
+                                        <Link to="/menu1/submenu1">Submenu 1</Link>
+                                        <Link to="/menu1/submenu2">Submenu 2</Link>
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className="menu-item">
+                                <button 
+                                    className={`menu-button ${activeMenu === 'voices' ? 'active' : ''}`}
+                                    onClick={() => handleMenuClick('voices')}
+                                >
+                                    Voices
+                                </button>
+                                {activeMenu === 'voices' && (
+                                    <div className="dropdown-menu">
+                                        <Link to="/voices">All Voices</Link>
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className="menu-item">
+                                <button 
+                                    className={`menu-button ${activeMenu === 'menu2' ? 'active' : ''}`}
+                                    onClick={() => handleMenuClick('menu2')}
+                                >
+                                    Menu 2
+                                </button>
+                                {activeMenu === 'menu2' && (
+                                    <div className="dropdown-menu">
+                                        <a href="#">Submenu 2.1</a>
+                                        <a href="#">Submenu 2.2</a>
+                                        <a href="#">Submenu 2.3</a>
                                     </div>
                                 )}
                             </div>
@@ -60,17 +97,10 @@ const Navigation = () => {
                             <div className="menu-item">
                                 <button 
                                     className="menu-button"
-                                    onClick={() => handleMenuClick('menu2')}
+                                    onClick={logout}
                                 >
-                                    Menu 2
+                                    Logout
                                 </button>
-                                {activeMenu === 'menu2' && (
-                                    <div className="submenu">
-                                        <a href="#">Submenu 2.1</a>
-                                        <a href="#">Submenu 2.2</a>
-                                        <a href="#">Submenu 2.3</a>
-                                    </div>
-                                )}
                             </div>
 
                             <div className="record-container">
@@ -88,10 +118,6 @@ const Navigation = () => {
                                     )}
                                 </button>
                             </div>
-
-                            <button className="logout-button" onClick={logout}>
-                                Logout
-                            </button>
                         </>
                     )}
                 </div>

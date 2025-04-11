@@ -43,7 +43,6 @@ const PrivateRoute = ({ children }) => {
   const location = useLocation();
 
   if (!isLoggedIn) {
-    // Redirect to login but save the attempted URL
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
@@ -51,11 +50,11 @@ const PrivateRoute = ({ children }) => {
 };
 
 const AppContent = () => {
-  const { isLoggedIn, webSocketRef, handleSessionExpired } = useAuth();
+  const { isLoggedIn } = useAuth();
   const location = useLocation();
 
   return (
-    <div className="App">
+    <div className="app">
       <Navigation />
       <main className="main-content">
         <Routes>
@@ -70,10 +69,21 @@ const AppContent = () => {
             } 
           />
           <Route 
-            path="/" 
+            path="/voices" 
             element={
               <PrivateRoute>
                 <TranscriptionList />
+              </PrivateRoute>
+            } 
+          />
+          <Route 
+            path="/" 
+            element={
+              <PrivateRoute>
+                <div className="home-content">
+                  <h1>Welcome to Zebrai</h1>
+                  <p>دستیار زبر و زرنگ شما در مطب</p>
+                </div>
               </PrivateRoute>
             } 
           />
