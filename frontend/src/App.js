@@ -1,8 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { v4 as uuidv4 } from 'uuid'; // Import uuid
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { AuthProvider, useAuth } from './context/AuthContext';
 import Login from './components/Login';
 import TranscriptionList from './components/TranscriptionList';
-import { useAuth } from './context/AuthContext';
+import Navigation from './components/Navigation';
 import './App.css';
 
 // --- Configuration ---
@@ -46,12 +48,25 @@ const getIOSAudioSettings = () => {
   };
 };
 
-function App() {
+const PrivateRoute = ({ children }) => {
+  const { isLoggedIn } = useAuth();
+  const location = useLocation();
+
+  if (!isLoggedIn) {
+    // Redirect to login but save the attempted URL
+    return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+
+  return children;
+};
+
+const AppContent = () => {
   const { isLoggedIn, authToken, username, logout, webSocketRef, handleSessionExpired } = useAuth();
   const [isRecording, setIsRecording] = useState(false);
   const [transcript, setTranscript] = useState('');
   const [error, setError] = useState('');
   const [recordingDuration, setRecordingDuration] = useState(0);
+  const location = useLocation();
 
   // Refs to hold instances that shouldn't trigger re-renders on change
   const mediaRecorderRef = useRef(null);
@@ -297,49 +312,48 @@ function App() {
     return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
-  if (!isLoggedIn) {
-    return <Login />;
-  }
-
   return (
     <div className="App">
-      <header className="App-header">
-        <div className="header-content">
-          <h1>Real-time Transcription Assistant</h1>
-          <div className="user-info">
-            <span>Welcome, {username}</span>
-            <button onClick={logout} className="logout-button">Logout</button>
-          </div>
-        </div>
-        <button onClick={isRecording ? stopRecording : startRecording}>
-          {isRecording ? 'Stop Recording' : 'Start Recording'}
-        </button>
-        <p>Status: {isRecording ? 'Recording...' : 'Idle'}</p>
-        {isRecording && <p>Duration: {formatDuration(recordingDuration)}</p>}
-        {error && <p style={{ color: 'red' }}>Error: {error}</p>}
-        <div className="transcript-container">
-          <h2>Transcript:</h2>
-          <div className="transcript-text" style={{ 
-            whiteSpace: 'pre-wrap', 
-            wordBreak: 'break-word',
-            maxHeight: '300px',
-            overflowY: 'auto',
-            padding: '10px',
-            border: '1px solid #ccc',
-            borderRadius: '4px',
-            backgroundColor: '#f9f9f9'
-          }}>
-            {transcript || '...'}
-          </div>
-        </div>
-        
-        {/* Add the TranscriptionList component */}
-        <div className="transcription-list-container">
-          <h2>Transcription History</h2>
-          <TranscriptionList credentials={authToken} />
-        </div>
-      </header>
+      <Navigation />
+      <main className="main-content">
+        <Routes>
+          <Route 
+            path="/login" 
+            element={
+              isLoggedIn ? (
+                <Navigate to="/" replace />
+              ) : (
+                <Login />
+              )
+            } 
+          />
+          <Route 
+            path="/" 
+            element={
+              <PrivateRoute>
+                <TranscriptionList />
+              </PrivateRoute>
+            } 
+          />
+          <Route 
+            path="*" 
+            element={
+              <Navigate to={isLoggedIn ? "/" : "/login"} replace />
+            } 
+          />
+        </Routes>
+      </main>
     </div>
+  );
+};
+
+function App() {
+  return (
+    <Router>
+      <AuthProvider>
+        <AppContent />
+      </AuthProvider>
+    </Router>
   );
 }
 
