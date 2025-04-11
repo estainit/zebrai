@@ -26,7 +26,7 @@ const Login = () => {
                 localStorage.setItem('authToken', event.data.token);
                 localStorage.setItem('username', event.data.username);
                 // Navigate to home
-                navigate('/');
+                window.location.href = '/';
             } else if (event.data.type === 'oauth-error') {
                 setError(event.data.error);
             }
@@ -34,13 +34,13 @@ const Login = () => {
 
         window.addEventListener('message', handleMessage);
         return () => window.removeEventListener('message', handleMessage);
-    }, [location, navigate]);
+    }, [location]);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
         try {
             await login(username, password);
-            navigate('/');
+            window.location.href = '/';
         } catch (err) {
             setError(err.message);
         }
@@ -103,7 +103,7 @@ const Login = () => {
                     className="google-login-button"
                 >
                     <img 
-                        src="/google-icon.svg" 
+                        src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" 
                         alt="Google"
                         className="google-icon"
                     />

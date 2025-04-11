@@ -29,7 +29,7 @@ export const AuthProvider = ({ children }) => {
             
             // If this is a popup window, close it and refresh the opener
             if (window.opener) {
-                window.opener.location.reload();
+                window.opener.location.href = '/';
                 window.close();
             } else {
                 // If not a popup, just redirect to home
@@ -85,7 +85,6 @@ export const AuthProvider = ({ children }) => {
             setWebSocketRef(null);
         }
         
-        // Redirect to login
         window.location.href = '/login';
     };
 
