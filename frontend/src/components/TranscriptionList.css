@@ -599,4 +599,28 @@ input[type="checkbox"] {
 .user-info::before {
     content: "User: ";
     font-style: normal;
+}
+
+.transcription-items {
+    width: 100%;
+    margin-top: 20px;
+}
+
+.transcription-item {
+    padding: 15px;
+    border-bottom: 1px solid #eee;
+    transition: background-color 0.2s ease;
+}
+
+/* Add striped table styling */
+.transcription-item:nth-child(odd) {
+    background-color: #f8f9fa;
+}
+
+.transcription-item:nth-child(even) {
+    background-color: #ffffff;
+}
+
+.transcription-item:hover {
+    background-color: #f0f7ff;
 } 
