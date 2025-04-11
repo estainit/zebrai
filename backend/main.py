@@ -253,6 +253,7 @@ async def get_transcriptions(
 ):
     """
     Get paginated transcriptions for the current user with optional time filtering.
+    If the user is an admin, returns all transcriptions.
     
     Args:
         page: Page number (1-based)
@@ -264,19 +265,29 @@ async def get_transcriptions(
     Returns:
         Paginated transcriptions with metadata
     """
-    # Calculate offset
+    # Validate pagination parameters
+    if page < 1:
+        page = 1
+    if per_page < 1:
+        per_page = 10
+    if per_page > 100:  # Limit maximum items per page
+        per_page = 100
+    
+    # Calculate offset for pagination
     offset = (page - 1) * per_page
     
     # Base query
     query = select(voice_records)
     
-    # Check if user_id column exists
-    try:
-        # Try to filter by user_id if the column exists
-        query = query.where(voice_records.c.user_id == current_user.id)
-    except AttributeError:
-        # If user_id column doesn't exist, return all transcriptions (for backward compatibility)
-        logger.warning("user_id column not found in voice_records table. Returning all transcriptions.")
+    # Check if user is admin
+    if current_user.role == 'admin':
+        logger.info(f"Admin {current_user.username} accessing all transcriptions")
+    else:
+        # For non-admin users, filter by user_id
+        try:
+            query = query.where(voice_records.c.user_id == current_user.id)
+        except AttributeError:
+            logger.warning("user_id column not found in voice_records table. Returning all transcriptions.")
     
     # Apply time filter
     now = datetime.utcnow()
@@ -284,14 +295,19 @@ async def get_transcriptions(
         # Last 24 hours
         start_time = now - timedelta(days=1)
         query = query.where(voice_records.c.created_at >= start_time)
+        logger.info(f"Applying time filter: last 24 hours")
     elif time_filter == "week":
         # Last 7 days
         start_time = now - timedelta(days=7)
         query = query.where(voice_records.c.created_at >= start_time)
+        logger.info(f"Applying time filter: last 7 days")
     elif time_filter == "month":
         # Last 30 days
         start_time = now - timedelta(days=30)
         query = query.where(voice_records.c.created_at >= start_time)
+        logger.info(f"Applying time filter: last 30 days")
+    else:
+        logger.info("No time filter applied")
     
     # Get total count after applying filters
     count_query = select(func.count()).select_from(query.subquery())
@@ -316,7 +332,8 @@ async def get_transcriptions(
             "file_size": format_file_size(len(transcription.audio_byte)) if transcription.audio_byte else "0 B",
             "created_at": transcription.created_at.isoformat() if transcription.created_at else None,
             "row_number": start_row + i,
-            "client_type": transcription.client_type
+            "client_type": transcription.client_type,
+            "user_id": transcription.user_id if hasattr(transcription, 'user_id') else None
         })
     
     # Prepare response
@@ -326,9 +343,12 @@ async def get_transcriptions(
         "page": page,
         "per_page": per_page,
         "total_pages": total_pages,
-        "has_more": page < total_pages
+        "has_more": page < total_pages,
+        "is_admin": current_user.role == 'admin',
+        "time_filter": time_filter
     }
     
+    logger.info(f"Returning {len(items)} transcriptions (page {page} of {total_pages})")
     return response
 
 # Helper function to format file size

@@ -1,11 +1,14 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import './TranscriptionList.css';
-import { FaPlay, FaPause, FaStop, FaTrash, FaSync } from 'react-icons/fa';
+import { FaPlay, FaPause, FaStop, FaTrash, FaSync, FaAngleDoubleLeft, FaAngleLeft, FaAngleRight, FaAngleDoubleRight } from 'react-icons/fa';
 import { MdFirstPage, MdLastPage, MdNavigateBefore, MdNavigateNext } from 'react-icons/md';
 import { useApi } from '../utils/api';
 import { useAuth } from '../context/AuthContext';
 
-const TranscriptionList = ({ credentials }) => {
+const API_URL = 'https://cryptafe.io';
+
+const TranscriptionList = () => {
+    const { authToken, handleSessionExpired } = useAuth();
     const [transcriptions, setTranscriptions] = useState([]);
     const [selectedIds, setSelectedIds] = useState([]);
     const [currentPage, setCurrentPage] = useState(1);
@@ -29,7 +32,6 @@ const TranscriptionList = ({ credentials }) => {
     const eventHandlersRef = useRef({});
     const audioElements = useRef({});
     const api = useApi();
-    const { handleSessionExpired } = useAuth();
 
     // Update localStorage whenever timeFilter changes
     useEffect(() => {
@@ -130,29 +132,52 @@ const TranscriptionList = ({ credentials }) => {
     }, [handleLoadedData, handleEnded, handleError, handleTimeUpdate]);
 
     const fetchTranscriptions = async () => {
+        console.log('Starting fetchTranscriptions, authToken:', authToken ? 'exists' : 'missing');
+        if (!authToken) {
+            console.log('No authToken found, setting error');
+            setError('Not authenticated. Please log in.');
+            setIsLoading(false);
+            return;
+        }
+
+        setIsLoading(true);
+        setError(null);
         try {
-            setIsLoading(true);
-            const response = await api.get(
-                `/api/transcriptions?page=${currentPage}&per_page=${perPage}&time_filter=${timeFilter}`
-            );
+            console.log('Making API request...');
+            const response = await fetch(`${API_URL}/api/transcriptions?page=${currentPage}&per_page=${perPage}&time_filter=${timeFilter}`, {
+                headers: {
+                    'Authorization': `Bearer ${authToken}`,
+                    'Accept': 'application/json'
+                }
+            });
             
+            console.log('Response status:', response.status);
             if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
+                if (response.status === 401) {
+                    console.log('401 Unauthorized, handling session expired');
+                    handleSessionExpired();
+                    return;
+                }
+                const errorText = await response.text();
+                console.log('Error response:', errorText);
+                try {
+                    const errorJson = JSON.parse(errorText);
+                    throw new Error(errorJson.message || 'Failed to fetch transcriptions');
+                } catch (e) {
+                    throw new Error(errorText || 'Failed to fetch transcriptions');
+                }
             }
             
             const data = await response.json();
+            console.log('Received data:', data);
             setTranscriptions(data.items);
             setTotalPages(data.total_pages);
             setHasMore(data.has_more);
-            setError(null);
         } catch (err) {
-            console.error('Error fetching transcriptions:', err);
-            if (err.message.includes('Session expired')) {
-                handleSessionExpired();
-            } else {
-                setError('Failed to load transcriptions');
-            }
+            console.error('Error in fetchTranscriptions:', err);
+            setError(err.message || 'Failed to fetch transcriptions');
         } finally {
+            console.log('Setting isLoading to false');
             setIsLoading(false);
         }
     };
@@ -163,15 +188,10 @@ const TranscriptionList = ({ credentials }) => {
         }
     };
 
-    const handleFirstPage = () => handlePageChange(1);
-    const handlePrevPage = () => handlePageChange(currentPage - 1);
-    const handleNextPage = () => handlePageChange(currentPage + 1);
-    const handleLastPage = () => handlePageChange(totalPages);
-
-    const handlePerPageChange = (e) => {
-        const newPerPage = parseInt(e.target.value, 10);
+    const handlePerPageChange = (event) => {
+        const newPerPage = parseInt(event.target.value);
         setPerPage(newPerPage);
-        setCurrentPage(1); // Reset to first page when changing per page
+        setCurrentPage(1); // Reset to first page when changing items per page
     };
 
     const handleTimeFilterChange = (e) => {
@@ -185,8 +205,9 @@ const TranscriptionList = ({ credentials }) => {
     };
 
     useEffect(() => {
+        console.log('useEffect triggered, dependencies:', { currentPage, perPage, timeFilter, authToken });
         fetchTranscriptions();
-    }, [currentPage, perPage, timeFilter]);
+    }, [currentPage, perPage, timeFilter, authToken]);
 
     const handleSelectAll = (e) => {
         if (e.target.checked) {
@@ -438,12 +459,6 @@ const TranscriptionList = ({ credentials }) => {
         }
     };
 
-    const loadMore = () => {
-        if (!isLoading && hasMore) {
-            setCurrentPage(prev => prev + 1);
-        }
-    };
-
     const handleRefresh = () => {
         setCurrentPage(1);
         setTranscriptions([]);
@@ -594,17 +609,82 @@ const TranscriptionList = ({ credentials }) => {
                     </div>
                 ))}
             </div>
-            {hasMore && (
-                <div className="load-more-container">
+            <div className="pagination-container">
+                <div className="pagination">
                     <button 
-                        className="load-more-button" 
-                        onClick={loadMore}
-                        disabled={isLoading}
+                        className="pagination-button"
+                        onClick={() => handlePageChange(1)}
+                        disabled={currentPage === 1}
                     >
-                        {isLoading ? 'Loading...' : 'Load More'}
+                        <FaAngleDoubleLeft />
+                    </button>
+                    <button 
+                        className="pagination-button"
+                        onClick={() => handlePageChange(currentPage - 1)}
+                        disabled={currentPage === 1}
+                    >
+                        <FaAngleLeft />
+                    </button>
+                    {Array.from({ length: totalPages }, (_, i) => i + 1)
+                        .filter(page => {
+                            if (totalPages <= 5) return true;
+                            if (page === 1 || page === totalPages) return true;
+                            if (Math.abs(page - currentPage) <= 1) return true;
+                            return false;
+                        })
+                        .map((page, index, array) => {
+                            if (index > 0 && array[index - 1] !== page - 1) {
+                                return (
+                                    <React.Fragment key={`ellipsis-${page}`}>
+                                        <span className="pagination-ellipsis">...</span>
+                                        <button
+                                            className={`pagination-button ${currentPage === page ? 'active' : ''}`}
+                                            onClick={() => handlePageChange(page)}
+                                        >
+                                            {page}
+                                        </button>
+                                    </React.Fragment>
+                                );
+                            }
+                            return (
+                                <button
+                                    key={page}
+                                    className={`pagination-button ${currentPage === page ? 'active' : ''}`}
+                                    onClick={() => handlePageChange(page)}
+                                >
+                                    {page}
+                                </button>
+                            );
+                        })}
+                    <button 
+                        className="pagination-button"
+                        onClick={() => handlePageChange(currentPage + 1)}
+                        disabled={currentPage === totalPages}
+                    >
+                        <FaAngleRight />
+                    </button>
+                    <button 
+                        className="pagination-button"
+                        onClick={() => handlePageChange(totalPages)}
+                        disabled={currentPage === totalPages}
+                    >
+                        <FaAngleDoubleRight />
                     </button>
                 </div>
-            )}
+                <div className="per-page-selector">
+                    <label htmlFor="per-page">Results per page:</label>
+                    <select 
+                        id="per-page" 
+                        value={perPage} 
+                        onChange={handlePerPageChange}
+                    >
+                        <option value="5">5</option>
+                        <option value="10">10</option>
+                        <option value="20">20</option>
+                        <option value="50">50</option>
+                    </select>
+                </div>
+            </div>
         </div>
     );
 };
