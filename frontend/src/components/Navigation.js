@@ -42,7 +42,7 @@ const Navigation = () => {
                         Zebrai
                     </Link>
                     <p className="welcome-text">
-                        {isLoggedIn ? `Welcome, ${username}!` : 'Welcome to Zebrai'}
+                        {isLoggedIn ? `Welcome, ${username}!` : 'Welcome to Vardastai'}
                     </p>
                 </div>
 

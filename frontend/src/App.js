@@ -81,8 +81,8 @@ const AppContent = () => {
             element={
               <PrivateRoute>
                 <div className="home-content">
-                  <h1>Welcome to Zebrai</h1>
-                  <p>دستیار زبر و زرنگ شما در مطب</p>
+                  <h1>Welcome to VardastAi</h1>
+                  <p>وردست زبر و زرنگ شما</p>
                 </div>
               </PrivateRoute>
             } 

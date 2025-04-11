@@ -5,7 +5,7 @@ import { MdFirstPage, MdLastPage, MdNavigateBefore, MdNavigateNext } from 'react
 import { useApi } from '../utils/api';
 import { useAuth } from '../context/AuthContext';
 
-const API_URL = 'https://cryptafe.io';
+const API_URL = 'https://vardastai.com';
 
 const TranscriptionList = () => {
     const { authToken, handleSessionExpired } = useAuth();

@@ -2,7 +2,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { getClientType, isIOS, getSupportedMimeType, getIOSAudioSettings } from '../utils/utils';
 
 // WebSocket configuration
-const BACKEND_WS_URL = 'wss://cryptafe.io/ws';
+const BACKEND_WS_URL = 'wss://vardastai.com/ws';
 const TIMESLICE_MS = 2000; // Send chunks every 2 seconds
 
 // Detect iOS device

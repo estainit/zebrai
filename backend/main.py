@@ -49,7 +49,7 @@ security = HTTPBearer()
 # Configure CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:8000", "https://cryptafe.io"],  # Frontend URLs
+    allow_origins=["http://localhost:3000", "http://localhost:8000", "https://vardastai.com"],  # Frontend URLs
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["Content-Type", "Authorization", "Accept", "Origin", "X-Requested-With"],
@@ -60,7 +60,7 @@ app.add_middleware(
 # Add to your existing CORS configuration
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:8000", "https://cryptafe.io"],
+    allow_origins=["http://localhost:3000", "http://localhost:8000", "https://vardastai.com" ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

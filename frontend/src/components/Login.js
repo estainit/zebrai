@@ -54,7 +54,7 @@ const Login = () => {
         const top = window.screen.height / 2 - height / 2;
         
         window.open(
-            'https://cryptafe.io/api/auth/google',
+            'https://vardastai.com/api/auth/google',
             'Google OAuth',
             `width=${width},height=${height},left=${left},top=${top}`
         );

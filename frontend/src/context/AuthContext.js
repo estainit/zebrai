@@ -54,7 +54,7 @@ export const AuthProvider = ({ children }) => {
 
     const login = async (username, password) => {
         try {
-            const response = await fetch('https://cryptafe.io/api/login', {
+            const response = await fetch('https://vardastai.com/api/login', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
