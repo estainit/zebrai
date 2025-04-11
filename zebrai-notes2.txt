@@ -46,7 +46,7 @@ python install and run debug sever:
     cd backend && python3 debug_server.py
 
 chnage password:
-    curl -X POST http://localhost:8000/api/reset-password -H "Content-Type: application/json" -d '{"username": "admin", "new_password": "admin"}'
+    curl -X POST http://localhost:8000/api/reset-password -H "Content-Type: application/json" -d '{"username": "admin", "new_password": "admin1"}'
 
 
 frontend:

@@ -1,20 +1,18 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useRecording } from '../context/RecordingContext';
 import './Navigation.css';
-import { startRecording, stopRecording } from '../services/recordingService';
-
-// WebSocket configuration
-const BACKEND_WS_URL = 'wss://cryptafe.io/ws';
 
 const Navigation = () => {
     const { isLoggedIn, username, logout, webSocketRef, handleSessionExpired, authToken } = useAuth();
+    const { 
+        isRecording, 
+        recordingDuration, 
+        handleStartRecording, 
+        handleStopRecording 
+    } = useRecording();
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [activeMenu, setActiveMenu] = useState(null);
-    const [isRecording, setIsRecording] = useState(false);
-    const [recordingDuration, setRecordingDuration] = useState(0);
-    const [recordingStartTime, setRecordingStartTime] = useState(null);
-    const [error, setError] = useState('');
-    const mediaRecorderRef = useRef(null);
 
     const toggleMenu = () => {
         setIsMenuOpen(!isMenuOpen);
@@ -22,31 +20,6 @@ const Navigation = () => {
 
     const handleMenuClick = (menu) => {
         setActiveMenu(activeMenu === menu ? null : menu);
-    };
-
-    const handleStartRecording = async () => {
-        if (isRecording) return;
-        
-        const mediaRecorder = await startRecording({
-            isLoggedIn,
-            authToken,
-            webSocketRef,
-            setIsRecording,
-            setRecordingDuration,
-            setRecordingStartTime,
-            setError
-        });
-        
-        if (mediaRecorder) {
-            mediaRecorderRef.current = mediaRecorder;
-        }
-    };
-
-    const handleStopRecording = () => {
-        if (!isRecording) return;
-        stopRecording(mediaRecorderRef.current);
-        setIsRecording(false);
-        setRecordingDuration(0);
     };
 
     const formatDuration = (seconds) => {
@@ -103,10 +76,10 @@ const Navigation = () => {
                             <div className="record-container">
                                 <button 
                                     className={`record-button ${isRecording ? 'recording' : ''}`}
-                                    onClick={isRecording ? handleStopRecording : handleStartRecording}
+                                    onClick={isRecording ? handleStopRecording : () => handleStartRecording(authToken, webSocketRef, handleSessionExpired)}
                                     disabled={!isLoggedIn}
                                 >
-                                    {isRecording ? 'Stop Recording' : 'Start Recording'}
+                                    {isRecording ? 'Stop' : 'Start Recording'}
                                     {isRecording && (
                                         <>
                                             <span className="recording-indicator"></span>
