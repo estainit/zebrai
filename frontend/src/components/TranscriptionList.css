@@ -6,6 +6,7 @@
     background-color: #fff;
     border-radius: 8px;
     box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    box-sizing: border-box;
 }
 
 .transcription-header {
@@ -13,11 +14,13 @@
     align-items: flex-start;
     gap: 1rem;
     margin-bottom: 0.5rem;
+    flex-wrap: wrap;
 }
 
 .transcription-header h2 {
     margin: 0;
     color: #333;
+    font-size: clamp(1.2rem, 2vw, 1.5rem);
 }
 
 .select-all-container {
@@ -35,11 +38,13 @@
 .select-all-container label {
     cursor: pointer;
     user-select: none;
+    font-size: clamp(0.9rem, 1.5vw, 1rem);
 }
 
 .action-buttons {
     display: flex;
     gap: 10px;
+    flex-wrap: wrap;
 }
 
 .refresh-button, .delete-button, .load-more-button {
@@ -51,8 +56,9 @@
     display: flex;
     align-items: center;
     gap: 8px;
-    font-size: 14px;
+    font-size: clamp(0.8rem, 1.2vw, 0.9rem);
     transition: background-color 0.2s;
+    white-space: nowrap;
 }
 
 .refresh-button:hover, .delete-button:hover, .load-more-button:hover {
@@ -68,18 +74,22 @@
     width: 100%;
     border-collapse: collapse;
     margin-bottom: 20px;
+    overflow-x: auto;
+    display: block;
 }
 
 .transcription-table th, .transcription-table td {
     padding: 12px;
     text-align: left;
     border-bottom: 1px solid #eee;
+    font-size: clamp(0.8rem, 1.2vw, 0.9rem);
 }
 
 .transcription-table th {
     background-color: #f5f5f5;
     font-weight: 600;
     color: #333;
+    white-space: nowrap;
 }
 
 .transcription-table tr:hover {
@@ -108,13 +118,14 @@
     display: flex;
     align-items: center;
     gap: 10px;
+    flex-wrap: wrap;
 }
 
 .play-button, .pause-button, .stop-button {
     background: none;
     border: none;
     cursor: pointer;
-    font-size: 16px;
+    font-size: clamp(1rem, 1.5vw, 1.2rem);
     color: #333;
     padding: 5px;
     border-radius: 50%;
@@ -136,7 +147,7 @@
 .progress-container {
     display: flex;
     flex-direction: column;
-    width: 200px;
+    width: min(200px, 100%);
     gap: 5px;
 }
 
@@ -159,7 +170,7 @@
 .time-display {
     display: flex;
     justify-content: space-between;
-    font-size: 12px;
+    font-size: clamp(0.7rem, 1vw, 0.8rem);
     color: #666;
 }
 
@@ -172,8 +183,9 @@
     border: none;
     border-radius: 4px;
     cursor: pointer;
-    font-size: 16px;
+    font-size: clamp(0.9rem, 1.2vw, 1rem);
     transition: background-color 0.2s;
+    white-space: nowrap;
 }
 
 .load-more-button:hover {
@@ -190,6 +202,7 @@
     justify-content: center;
     gap: 10px;
     margin-top: 20px;
+    flex-wrap: wrap;
 }
 
 .pagination button {
@@ -198,8 +211,8 @@
     background-color: white;
     color: #333;
     cursor: pointer;
-    border-radius: 4px;
-    transition: all 0.2s ease;
+    font-size: clamp(0.8rem, 1.2vw, 0.9rem);
+    white-space: nowrap;
 }
 
 .pagination button:hover:not(:disabled) {
@@ -262,20 +275,84 @@ input[type="checkbox"] {
     accent-color: #007bff;
 }
 
-/* Responsive styles */
+/* Responsive Design */
 @media (max-width: 768px) {
+    .transcription-list {
+        padding: 15px;
+    }
+
+    .transcription-header {
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+    }
+
+    .action-buttons {
+        justify-content: center;
+    }
+
     .transcription-table {
         display: block;
         overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
     }
-    
+
+    .transcription-table th, 
+    .transcription-table td {
+        padding: 8px;
+    }
+
     .audio-controls {
-        flex-direction: column;
-        align-items: flex-start;
+        justify-content: center;
     }
-    
+
     .progress-container {
         width: 100%;
+    }
+}
+
+@media (max-width: 480px) {
+    .transcription-list {
+        padding: 10px;
+    }
+
+    .transcription-header {
+        gap: 0.5rem;
+    }
+
+    .action-buttons {
+        gap: 5px;
+    }
+
+    .transcription-table th, 
+    .transcription-table td {
+        padding: 6px;
+    }
+
+    .pagination {
+        gap: 5px;
+    }
+
+    .pagination button {
+        padding: 6px 12px;
+    }
+}
+
+/* Additional responsive styles for very small screens */
+@media (max-width: 320px) {
+    .transcription-list {
+        padding: 5px;
+    }
+
+    .transcription-table th, 
+    .transcription-table td {
+        padding: 4px;
+        font-size: 0.8rem;
+    }
+
+    .action-buttons button {
+        padding: 6px 10px;
+        font-size: 0.8rem;
     }
 }
 
