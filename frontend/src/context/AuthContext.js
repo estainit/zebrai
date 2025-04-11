@@ -17,24 +17,8 @@ export const AuthProvider = ({ children }) => {
         const username = params.get('username');
 
         if (token && username) {
-            // Store the token and username
-            localStorage.setItem('authToken', token);
-            localStorage.setItem('username', username);
-            setAuthToken(token);
-            setUsername(username);
-            setIsLoggedIn(true);
-            
-            // Remove token from URL
-            window.history.replaceState({}, document.title, window.location.pathname);
-            
-            // If this is a popup window, close it and refresh the opener
-            if (window.opener) {
-                window.opener.location.href = '/';
-                window.close();
-            } else {
-                // If not a popup, just redirect to home
-                window.location.href = '/';
-            }
+            // Handle social login callback
+            handleSocialLogin(token, username);
         } else {
             // Check for existing token in localStorage
             const storedToken = localStorage.getItem('authToken');
@@ -47,9 +31,30 @@ export const AuthProvider = ({ children }) => {
         }
     }, []);
 
+    const handleSocialLogin = (token, username) => {
+        // Store the token and username
+        localStorage.setItem('authToken', token);
+        localStorage.setItem('username', username);
+        setAuthToken(token);
+        setUsername(username);
+        setIsLoggedIn(true);
+        
+        // Remove token from URL
+        window.history.replaceState({}, document.title, window.location.pathname);
+        
+        // If this is a popup window, close it and refresh the opener
+        if (window.opener) {
+            window.opener.location.href = '/';
+            window.close();
+        } else {
+            // If not a popup, just redirect to home
+            window.location.href = '/';
+        }
+    };
+
     const login = async (username, password) => {
         try {
-            const response = await fetch('https://cryptafe.io/api/auth/login', {
+            const response = await fetch('https://cryptafe.io/api/login', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -58,18 +63,24 @@ export const AuthProvider = ({ children }) => {
             });
 
             if (!response.ok) {
-                throw new Error('Login failed');
+                const errorData = await response.json();
+                throw new Error(errorData.detail || 'Login failed');
             }
 
             const data = await response.json();
-            const token = data.token || data.access_token; // Handle both response formats
-            localStorage.setItem('authToken', token);
+            
+            // Handle username/password login response
+            localStorage.setItem('authToken', data.access_token);
             localStorage.setItem('username', data.username);
-            setAuthToken(token);
+            setAuthToken(data.access_token);
             setUsername(data.username);
             setIsLoggedIn(true);
+            
+            // Redirect to home page
+            window.location.href = '/';
         } catch (error) {
-            throw new Error('Login failed: ' + error.message);
+            console.error('Login error:', error);
+            throw error;
         }
     };
 
