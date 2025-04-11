@@ -4,7 +4,7 @@ import logging
 import bcrypt
 from dotenv import load_dotenv
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Depends, HTTPException, Request
-from fastapi.responses import JSONResponse, Response
+from fastapi.responses import JSONResponse, Response, RedirectResponse, HTMLResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.dialects.postgresql import insert as pg_insert # Use dialect specific insert for potential ON CONFLICT later
@@ -20,6 +20,9 @@ from datetime import datetime, timedelta
 import jwt
 from jwt.exceptions import InvalidTokenError
 import io
+from app.core.google_oauth import verify_google_token
+from app.core.security import create_access_token
+import httpx
 
 from database import engine, get_db_session
 from app.models import voice_records, users, create_tables, User
@@ -52,6 +55,15 @@ app.add_middleware(
     allow_headers=["Content-Type", "Authorization", "Accept", "Origin", "X-Requested-With"],
     expose_headers=["*"],
     max_age=3600  # Cache preflight requests for 1 hour
+)
+
+# Add to your existing CORS configuration
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000", "http://localhost:8000", "https://cryptafe.io"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # --- Database Initialization ---
@@ -494,6 +506,114 @@ async def reset_password(reset_data: PasswordResetRequest, db: AsyncSession = De
             status_code=500,
             detail=str(e)
         )
+
+# Google OAuth endpoints
+@app.get("/api/auth/google")
+async def google_auth():
+    """Redirect to Google OAuth consent screen"""
+    google_auth_url = (
+        "https://accounts.google.com/o/oauth2/v2/auth?"
+        "scope=email profile openid&"
+        f"client_id={os.getenv('GOOGLE_CLIENT_ID')}&"
+        "response_type=code&"
+        "access_type=offline&"
+        "prompt=consent&"
+        f"redirect_uri={os.getenv('GOOGLE_REDIRECT_URI')}"
+    )
+    return RedirectResponse(url=google_auth_url)
+
+@app.get("/api/auth/google/callback")
+async def google_auth_callback(code: str, db: AsyncSession = Depends(get_db_session)):
+    """Handle Google OAuth callback"""
+    try:
+        # Exchange code for tokens
+        async with httpx.AsyncClient() as client:
+            token_response = await client.post(
+                "https://oauth2.googleapis.com/token",
+                data={
+                    "code": code,
+                    "client_id": os.getenv("GOOGLE_CLIENT_ID"),
+                    "client_secret": os.getenv("GOOGLE_CLIENT_SECRET"),
+                    "redirect_uri": os.getenv("GOOGLE_REDIRECT_URI"),
+                    "grant_type": "authorization_code",
+                },
+            )
+            token_data = token_response.json()
+            
+            # Get user info using access token
+            userinfo_response = await client.get(
+                "https://www.googleapis.com/oauth2/v2/userinfo",
+                headers={"Authorization": f"Bearer {token_data['access_token']}"},
+            )
+            user_info = userinfo_response.json()
+
+        # Check if user exists in database
+        query = select(users).where(users.c.email == user_info["email"])
+        result = await db.execute(query)
+        user = result.fetchone()
+
+        if not user:
+            # Create new user
+            user_data = {
+                "username": user_info["email"].split("@")[0],
+                "email": user_info["email"],
+                "password_hash": "",  # No password for OAuth users
+                "role": "user",
+                "conf": "{}"
+            }
+            query = users.insert().values(**user_data)
+            await db.execute(query)
+            await db.commit()
+            
+            # Get the newly created user
+            query = select(users).where(users.c.email == user_info["email"])
+            result = await db.execute(query)
+            user = result.fetchone()
+
+        # Create JWT token
+        access_token = create_access_token(
+            data={"sub": user.username, "role": user.role}
+        )
+
+        # Return HTML that will close the popup and update the main window
+        html_content = f"""
+        <html>
+            <body>
+                <script>
+                    // Send message to opener window
+                    window.opener.postMessage({{
+                        type: 'oauth-success',
+                        token: '{access_token}',
+                        username: '{user.username}'
+                    }}, '*');
+                    
+                    // Close the popup
+                    window.close();
+                </script>
+            </body>
+        </html>
+        """
+        return HTMLResponse(content=html_content)
+
+    except Exception as e:
+        logger.error(f"Google OAuth error: {str(e)}")
+        html_content = f"""
+        <html>
+            <body>
+                <script>
+                    // Send error to opener window
+                    window.opener.postMessage({{
+                        type: 'oauth-error',
+                        error: '{str(e)}'
+                    }}, '*');
+                    
+                    // Close the popup
+                    window.close();
+                </script>
+            </body>
+        </html>
+        """
+        return HTMLResponse(content=html_content)
 
 # --- Run the server (for local development) ---
 # if __name__ == "__main__":

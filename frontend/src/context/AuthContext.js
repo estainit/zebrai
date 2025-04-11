@@ -1,139 +1,112 @@
-import React, { createContext, useState, useContext, useEffect, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
 
-const AuthContext = createContext(null);
+const AuthContext = createContext();
+
+export const useAuth = () => useContext(AuthContext);
 
 export const AuthProvider = ({ children }) => {
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [authToken, setAuthToken] = useState(null);
-  const [username, setUsername] = useState(null);
-  const [error, setError] = useState('');
-  const webSocketRef = useRef(null);
-  const [sessionExpired, setSessionExpired] = useState(false);
+    const [isLoggedIn, setIsLoggedIn] = useState(false);
+    const [authToken, setAuthToken] = useState(null);
+    const [username, setUsername] = useState('');
+    const [webSocketRef, setWebSocketRef] = useState(null);
 
-  // Check for stored credentials on mount
-  useEffect(() => {
-    const storedToken = localStorage.getItem('authToken');
-    const storedUsername = localStorage.getItem('username');
-    
-    if (storedToken && storedUsername) {
-      // If we have stored credentials, restore the session
-      setAuthToken(storedToken);
-      setUsername(storedUsername);
-      setIsLoggedIn(true);
-    }
-  }, []);
+    useEffect(() => {
+        // Check for token in URL (Google OAuth callback)
+        const params = new URLSearchParams(window.location.search);
+        const token = params.get('token');
+        const username = params.get('username');
 
-  const cleanupWebSocket = () => {
-    if (webSocketRef.current) {
-      webSocketRef.current.close();
-      webSocketRef.current = null;
-    }
-  };
+        if (token && username) {
+            // Store the token and username
+            localStorage.setItem('authToken', token);
+            localStorage.setItem('username', username);
+            setAuthToken(token);
+            setUsername(username);
+            setIsLoggedIn(true);
+            
+            // Remove token from URL
+            window.history.replaceState({}, document.title, window.location.pathname);
+            
+            // If this is a popup window, close it and refresh the opener
+            if (window.opener) {
+                window.opener.location.reload();
+                window.close();
+            } else {
+                // If not a popup, just redirect to home
+                window.location.href = '/';
+            }
+        } else {
+            // Check for existing token in localStorage
+            const storedToken = localStorage.getItem('authToken');
+            const storedUsername = localStorage.getItem('username');
+            if (storedToken && storedUsername) {
+                setAuthToken(storedToken);
+                setUsername(storedUsername);
+                setIsLoggedIn(true);
+            }
+        }
+    }, []);
 
-  const login = async (username, password) => {
-    try {
-      const response = await fetch('/api/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json'
-        },
-        body: JSON.stringify({ username, password }),
-        mode: 'cors',
-        credentials: 'include'
-      });
+    const login = async (username, password) => {
+        try {
+            const response = await fetch('https://cryptafe.io/api/auth/login', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ username, password }),
+            });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.detail || 'Login failed');
-      }
+            if (!response.ok) {
+                throw new Error('Login failed');
+            }
 
-      const data = await response.json();
-      
-      if (data.access_token) {
-        // Store the session data
-        localStorage.setItem('authToken', data.access_token);
-        localStorage.setItem('username', data.username);
-        
-        // Update the state
-        setAuthToken(data.access_token);
-        setUsername(data.username);
-        setIsLoggedIn(true);
-        setError('');
-        setSessionExpired(false);
-        
-        return true;
-      }
-      
-      throw new Error('No access token received');
-    } catch (err) {
-      console.error('Login error:', err);
-      setError(err.message || 'Failed to connect to the server');
-      setIsLoggedIn(false);
-      setAuthToken(null);
-      setUsername(null);
-      return false;
-    }
-  };
-
-  const logout = () => {
-    // Don't clear the time filter from localStorage
-    // localStorage.removeItem('timeFilter'); // Removed this line
-    
-    // Clear other auth-related items
-    localStorage.removeItem('authToken');
-    localStorage.removeItem('username');
-    
-    // Close WebSocket if open
-    if (webSocketRef.current) {
-        webSocketRef.current.close();
-        webSocketRef.current = null;
-    }
-    
-    // Reset state
-    setIsLoggedIn(false);
-    setAuthToken(null);
-    setUsername(null);
-  };
-
-  // Handle session expiration
-  const handleSessionExpired = () => {
-    console.log('Session expired, logging out user');
-    setSessionExpired(true);
-    logout();
-  };
-
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      cleanupWebSocket();
+            const data = await response.json();
+            localStorage.setItem('authToken', data.token);
+            localStorage.setItem('username', data.username);
+            setAuthToken(data.token);
+            setUsername(data.username);
+            setIsLoggedIn(true);
+        } catch (error) {
+            throw new Error('Login failed: ' + error.message);
+        }
     };
-  }, []);
 
-  const value = {
-    isLoggedIn,
-    authToken,
-    username,
-    error,
-    login,
-    logout,
-    setError,
-    webSocketRef,
-    sessionExpired,
-    handleSessionExpired
-  };
+    const logout = () => {
+        localStorage.removeItem('authToken');
+        localStorage.removeItem('username');
+        setAuthToken(null);
+        setUsername('');
+        setIsLoggedIn(false);
+        
+        // Close WebSocket connection if exists
+        if (webSocketRef) {
+            webSocketRef.close();
+            setWebSocketRef(null);
+        }
+        
+        // Redirect to login
+        window.location.href = '/login';
+    };
 
-  return (
-    <AuthContext.Provider value={value}>
-      {children}
-    </AuthContext.Provider>
-  );
-};
+    const handleSessionExpired = () => {
+        logout();
+    };
 
-export const useAuth = () => {
-  const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
-  return context;
+    const value = {
+        isLoggedIn,
+        authToken,
+        username,
+        login,
+        logout,
+        webSocketRef,
+        setWebSocketRef,
+        handleSessionExpired,
+    };
+
+    return (
+        <AuthContext.Provider value={value}>
+            {children}
+        </AuthContext.Provider>
+    );
 }; 

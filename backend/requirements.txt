@@ -1,13 +1,16 @@
 fastapi==0.68.1
 uvicorn==0.15.0
-sqlalchemy==2.0.25
-psycopg2-binary==2.9.9
+sqlalchemy==1.4.23
+asyncpg==0.24.0
 python-dotenv==0.19.0
 aiofiles==0.7.0
 openai==0.27.0
 python-multipart==0.0.5
-bcrypt==4.0.1
-python-jose==3.3.0
-passlib==1.7.4
+passlib[bcrypt]==1.7.4
+python-jose[cryptography]==3.3.0
 PyJWT==2.8.0
+websockets==10.0
+google-auth==2.3.3
+google-auth-oauthlib==0.4.6
+httpx==0.23.0
 
