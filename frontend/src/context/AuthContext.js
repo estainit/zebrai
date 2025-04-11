@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 
 const AuthContext = createContext();
 
@@ -8,7 +8,7 @@ export const AuthProvider = ({ children }) => {
     const [isLoggedIn, setIsLoggedIn] = useState(false);
     const [authToken, setAuthToken] = useState(null);
     const [username, setUsername] = useState('');
-    const [webSocketRef, setWebSocketRef] = useState(null);
+    const webSocketRef = useRef(null);
 
     useEffect(() => {
         // Check for token in URL (Google OAuth callback)
@@ -62,9 +62,10 @@ export const AuthProvider = ({ children }) => {
             }
 
             const data = await response.json();
-            localStorage.setItem('authToken', data.token);
+            const token = data.token || data.access_token; // Handle both response formats
+            localStorage.setItem('authToken', token);
             localStorage.setItem('username', data.username);
-            setAuthToken(data.token);
+            setAuthToken(token);
             setUsername(data.username);
             setIsLoggedIn(true);
         } catch (error) {
@@ -80,9 +81,9 @@ export const AuthProvider = ({ children }) => {
         setIsLoggedIn(false);
         
         // Close WebSocket connection if exists
-        if (webSocketRef) {
-            webSocketRef.close();
-            setWebSocketRef(null);
+        if (webSocketRef.current) {
+            webSocketRef.current.close();
+            webSocketRef.current = null;
         }
         
         window.location.href = '/login';
@@ -99,7 +100,6 @@ export const AuthProvider = ({ children }) => {
         login,
         logout,
         webSocketRef,
-        setWebSocketRef,
         handleSessionExpired,
     };
 
