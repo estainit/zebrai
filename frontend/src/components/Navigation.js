@@ -35,11 +35,8 @@ const Navigation = () => {
             <div className="nav-container">
                 <div className="nav-brand">
                     <Link to="/" className="brand-link">
-                        <svg className="home-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-                            <path d="M9 22V12h6v10" />
-                        </svg>
-                        Zebrai
+                        <img src="/vardastai-logo-70x70.png" alt="Home" className="vardastai-icon" />
+                        VardastAI
                     </Link>
                     <p className="welcome-text">
                         {isLoggedIn ? `Welcome, ${username}!` : 'Welcome to Vardastai'}

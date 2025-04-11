@@ -28,10 +28,10 @@
     font-size: 1.2rem;
 }
 
-.home-icon {
-    width: 20px;
-    height: 20px;
-    stroke: currentColor;
+.vardastai-icon {
+    width: 35px;
+    height: 35px;
+    object-fit: contain;
 }
 
 .nav-brand h1 {
