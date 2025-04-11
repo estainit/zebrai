@@ -277,7 +277,7 @@ async def get_transcriptions(
     offset = (page - 1) * per_page
     
     # Base query
-    query = select(voice_records)
+    query = select(voice_records, users.c.username).join(users, voice_records.c.user_id == users.c.id)
     
     # Check if user is admin
     if current_user.role == 'admin':
@@ -333,7 +333,8 @@ async def get_transcriptions(
             "created_at": transcription.created_at.isoformat() if transcription.created_at else None,
             "row_number": start_row + i,
             "client_type": transcription.client_type,
-            "user_id": transcription.user_id if hasattr(transcription, 'user_id') else None
+            "user_id": transcription.user_id if hasattr(transcription, 'user_id') else None,
+            "username": transcription.username
         })
     
     # Prepare response

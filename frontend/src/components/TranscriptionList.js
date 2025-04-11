@@ -533,10 +533,14 @@ const TranscriptionList = () => {
                 </select>
             </div>
             <div className="transcription-items">
-                {transcriptions.map((transcription) => (
+                {transcriptions.map((transcription, index) => (
                     <div key={transcription.id} className="transcription-item">
                         <div className="transcription-content">
                             <div className="transcription-header">
+                                <div className="record-meta">
+                                    <span className="ordinal-number">#{((currentPage - 1) * perPage) + index + 1}</span>
+                                    <span className="user-info">{transcription.username || 'N/A'} ({transcription.id})</span>
+                                </div>
                                 <input
                                     type="checkbox"
                                     checked={selectedIds.includes(transcription.id)}
