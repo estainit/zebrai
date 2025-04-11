@@ -6,6 +6,7 @@ import Login from './components/Login';
 import TranscriptionList from './components/TranscriptionList';
 import Navigation from './components/Navigation';
 import './App.css';
+import { startRecording, stopRecording } from './services/recordingService';
 
 // --- Configuration ---
 // Make sure this matches where your backend WebSocket is running
@@ -66,6 +67,7 @@ const AppContent = () => {
   const [transcript, setTranscript] = useState('');
   const [error, setError] = useState('');
   const [recordingDuration, setRecordingDuration] = useState(0);
+  const [recordingStartTime, setRecordingStartTime] = useState(null);
   const location = useLocation();
 
   // Refs to hold instances that shouldn't trigger re-renders on change
@@ -75,214 +77,50 @@ const AppContent = () => {
   const recordingStartTimeRef = useRef(null);
   const durationIntervalRef = useRef(null);
 
-  // --- Media Recording Logic ---
-  const startRecording = async () => {
-    if (isRecording || !isLoggedIn) return;
+  const handleStartRecording = async () => {
+    if (isRecording) return;
     
-    // Generate a new session ID for each recording
-    const newSessionId = uuidv4();
-    
-    setError('');
-    setTranscript(''); // Clear previous transcript
-    audioChunksRef.current = []; // Clear chunks
-    setRecordingDuration(0);
-    recordingStartTimeRef.current = Date.now();
-
     try {
-      // 1. Get audio stream
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      audioStreamRef.current = stream;
-
-      // 2. Create MediaRecorder with supported MIME type
-      let recorderOptions = {};
+      const recorder = await startRecording({
+        isLoggedIn,
+        authToken,
+        webSocketRef,
+        setIsRecording,
+        setRecordingDuration,
+        setRecordingStartTime,
+        setError,
+        setTranscript,
+        audioChunksRef,
+        mediaRecorderRef,
+        audioStreamRef,
+        handleSessionExpired
+      });
       
-      if (isIOS) {
-        // Use iOS-specific settings
-        recorderOptions = getIOSAudioSettings();
-        console.log('Using iOS-specific recorder options:', recorderOptions);
-      } else {
-        // Use detected MIME type for non-iOS devices
-        const mimeType = getSupportedMimeType();
-        if (mimeType) {
-          recorderOptions = { mimeType };
-        }
+      if (recorder) {
+        mediaRecorderRef.current = recorder;
       }
-      
-      const recorder = new MediaRecorder(stream, recorderOptions);
-      mediaRecorderRef.current = recorder;
-
-      // 3. Connect WebSocket
-      if (webSocketRef.current) {
-        webSocketRef.current.close();
-        webSocketRef.current = null;
-      }
-
-      // Detect client type
-      const userAgent = navigator.userAgent.toLowerCase();
-      let clientType = 'unknown';
-      
-      if (userAgent.includes('iphone') || userAgent.includes('ipad')) {
-        clientType = 'ios';
-      } else if (userAgent.includes('macintosh')) {
-        clientType = 'mac';
-      } else if (userAgent.includes('windows')) {
-        clientType = 'windows';
-      } else if (userAgent.includes('linux')) {
-        clientType = 'linux';
-      } else if (userAgent.includes('android')) {
-        clientType = 'android';
-      }
-
-      const ws = new WebSocket(`${BACKEND_WS_URL}/${newSessionId}?client_type=${clientType}`);
-      webSocketRef.current = ws;
-      
-      ws.onopen = () => {
-        console.log('WebSocket connected');
-        // Send token in the connection
-        ws.send(JSON.stringify({ type: 'auth', token: authToken }));
-      };
-
-      ws.onmessage = (event) => {
-        try {
-          const message = JSON.parse(event.data);
-          console.log('Received WebSocket message:', message);
-          
-          if (message.type === 'transcript' && message.text) {
-            console.log('Received transcript:', message.text);
-            // Update transcript with proper spacing
-            setTranscript((prev) => {
-              // If this is the first transcript, don't add a space
-              if (!prev) return message.text;
-              // Otherwise, add a space only if the previous text doesn't end with punctuation
-              const lastChar = prev.trim().slice(-1);
-              const needsSpace = !['.', '!', '?', ','].includes(lastChar);
-              return prev + (needsSpace ? ' ' : '') + message.text;
-            });
-          } else if (message.type === 'error') {
-            console.error('Received error from backend:', message.message);
-            if (message.message.includes('Session expired') || message.message.includes('Invalid token')) {
-              handleSessionExpired();
-            } else {
-              setError(`Backend Error: ${message.message}`);
-            }
-          }
-        } catch (e) {
-          console.error('Failed to parse message:', event.data, e);
-        }
-      };
-
-      ws.onerror = (event) => {
-        console.error('WebSocket Error:', event);
-        setError('WebSocket connection error. Please check your credentials.');
-      };
-
-      ws.onclose = (event) => {
-        console.log('WebSocket Disconnected:', event.reason);
-        if (event.code === 4001 || event.code === 4002) {
-          setError('Authentication failed. Please log in again.');
-          handleSessionExpired();
-        }
-      };
-
-      // 4. Handle data chunks
-      recorder.ondataavailable = (event) => {
-        if (event.data.size > 0 && webSocketRef.current?.readyState === WebSocket.OPEN) {
-          console.log(`Sending audio chunk: ${event.data.size} bytes`);
-          audioChunksRef.current.push(event.data); // Store locally if needed
-          webSocketRef.current.send(event.data); // Send blob directly
-        } else if (webSocketRef.current?.readyState !== WebSocket.OPEN) {
-          console.warn('WebSocket not open. Cannot send audio chunk.');
-          // Don't stop recording here, just log the warning
-        }
-      };
-
-      // 5. Handle recording stop
-      recorder.onstop = () => {
-        console.log('Media Recorder stopped.');
-        if (audioStreamRef.current) {
-          audioStreamRef.current.getTracks().forEach(track => track.stop());
-          audioStreamRef.current = null;
-        }
-        setIsRecording(false);
-        
-        // Clear intervals
-        if (durationIntervalRef.current) {
-          clearInterval(durationIntervalRef.current);
-          durationIntervalRef.current = null;
-        }
-      };
-
-      // 6. Start recording with timeslice
-      recorder.start(TIMESLICE_MS);
-      setIsRecording(true);
-      console.log('Recording started...');
-      
-      // 7. Set up duration tracking
-      durationIntervalRef.current = setInterval(() => {
-        const elapsed = Math.floor((Date.now() - recordingStartTimeRef.current) / 1000);
-        setRecordingDuration(elapsed);
-      }, 1000);
-
-    } catch (err) {
-      console.error('Error starting recording:', err);
-      setError(`Error: ${err.message}`);
-      // Cleanup on error
-      if (audioStreamRef.current) {
-        audioStreamRef.current.getTracks().forEach(track => track.stop());
-        audioStreamRef.current = null;
-      }
-      setIsRecording(false);
-      
-      // Clear intervals
-      if (durationIntervalRef.current) {
-        clearInterval(durationIntervalRef.current);
-      }
+    } catch (error) {
+      console.error('Error starting recording:', error);
+      setError(error.message);
     }
   };
 
-  const stopRecording = () => {
-    if (!isRecording || !mediaRecorderRef.current) return;
-    console.log('Stopping recording...');
+  const handleStopRecording = () => {
+    if (!isRecording) return;
     
-    // Stop the media recorder
-    if (mediaRecorderRef.current.state === 'recording') {
-      mediaRecorderRef.current.stop();
+    try {
+      stopRecording({
+        mediaRecorderRef,
+        webSocketRef,
+        audioStreamRef,
+        setIsRecording,
+        setRecordingDuration,
+        durationIntervalRef
+      });
+    } catch (error) {
+      console.error('Error stopping recording:', error);
+      setError(error.message);
     }
-    
-    // Close WebSocket connection after a short delay to ensure all data is sent
-    setTimeout(() => {
-      if (webSocketRef.current) {
-        webSocketRef.current.close();
-        webSocketRef.current = null;
-      }
-      
-      // Ensure all resources are properly cleaned up
-      if (audioStreamRef.current) {
-        audioStreamRef.current.getTracks().forEach(track => track.stop());
-        audioStreamRef.current = null;
-      }
-      
-      // Clear intervals
-      if (durationIntervalRef.current) {
-        clearInterval(durationIntervalRef.current);
-        durationIntervalRef.current = null;
-      }
-      
-      // Reset recording state
-      setIsRecording(false);
-      
-      // Automatically refresh the transcription list after a short delay
-      // to ensure the new recording is saved in the database
-      setTimeout(() => {
-        const transcriptionList = document.querySelector('.transcription-list');
-        if (transcriptionList) {
-          const refreshButton = transcriptionList.querySelector('.refresh-button');
-          if (refreshButton) {
-            refreshButton.click();
-          }
-        }
-      }, 2000); // Wait 2 seconds to ensure the recording is saved
-    }, 1000);
   };
 
   // --- Cleanup Effect ---
@@ -290,16 +128,8 @@ const AppContent = () => {
     // This runs when the component unmounts
     return () => {
       console.log('App Component unmounting. Cleaning up...');
-      if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
-        mediaRecorderRef.current.stop();
-      }
-      if (audioStreamRef.current) {
-        audioStreamRef.current.getTracks().forEach(track => track.stop());
-      }
-      
-      // Clear intervals
-      if (durationIntervalRef.current) {
-        clearInterval(durationIntervalRef.current);
+      if (mediaRecorderRef?.current && mediaRecorderRef.current.state === 'recording') {
+        handleStopRecording();
       }
     };
   }, []); // Empty dependency array means run only on mount and unmount
