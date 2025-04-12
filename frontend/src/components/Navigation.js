@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useRecording } from '../context/RecordingContext';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
+import { useLanguage } from '../hooks/useLanguage';
 import './Navigation.css';
 
 const Navigation = () => {
@@ -15,6 +17,9 @@ const Navigation = () => {
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [activeMenu, setActiveMenu] = useState(null);
     const location = useLocation();
+    const navigate = useNavigate();
+    const { t } = useTranslation();
+    const { currentLanguage, changeLanguage } = useLanguage();
 
     const toggleMenu = () => {
         setIsMenuOpen(!isMenuOpen);
@@ -28,6 +33,16 @@ const Navigation = () => {
         const minutes = Math.floor(seconds / 60);
         const remainingSeconds = seconds % 60;
         return `${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
+    };
+
+    const handleLogout = () => {
+        logout();
+        navigate('/login');
+    };
+
+    const handleLanguageChange = (e) => {
+        const newLanguage = e.target.value;
+        changeLanguage(newLanguage, true); // true to remember the choice
     };
 
     return (
@@ -94,7 +109,7 @@ const Navigation = () => {
                             <div className="menu-item">
                                 <button 
                                     className="menu-button"
-                                    onClick={logout}
+                                    onClick={handleLogout}
                                 >
                                     Logout
                                 </button>
@@ -114,6 +129,19 @@ const Navigation = () => {
                                         </>
                                     )}
                                 </button>
+                            </div>
+
+                            <div className="language-selector">
+                                <select 
+                                    value={currentLanguage} 
+                                    onChange={handleLanguageChange}
+                                    className="language-dropdown"
+                                >
+                                    <option value="en">English</option>
+                                    <option value="fa">پارسی</option>
+                                    <option value="it">Italiano</option>
+                                    <option value="es">Español</option>
+                                </select>
                             </div>
                         </>
                     )}

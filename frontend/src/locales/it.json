@@ -1,0 +1,51 @@
+{
+    "common": {
+        "login": "Accedi",
+        "logout": "Esci",
+        "username": "Nome utente",
+        "password": "Password",
+        "submit": "Invia",
+        "error": "Errore",
+        "success": "Successo",
+        "loading": "Caricamento in corso...",
+        "cancel": "Annulla",
+        "save": "Salva",
+        "delete": "Elimina",
+        "edit": "Modifica",
+        "back": "Indietro"
+    },
+    "auth": {
+        "login_with_google": "Continua con Google",
+        "login_error": "Accesso fallito. Riprova.",
+        "session_expired": "La tua sessione è scaduta. Accedi di nuovo."
+    },
+    "transcriptions": {
+        "title": "Trascrizioni",
+        "no_transcriptions": "Nessuna trascrizione trovata",
+        "delete_confirm": "Sei sicuro di voler eliminare questa trascrizione?",
+        "delete_success": "Trascrizione eliminata con successo",
+        "delete_error": "Errore durante l'eliminazione della trascrizione",
+        "load_more": "Carica altro",
+        "filter": {
+            "all": "Tutto il tempo",
+            "today": "Oggi",
+            "week": "Questa settimana",
+            "month": "Questo mese"
+        }
+    },
+    "settings": {
+        "title": "Impostazioni",
+        "language": "Lingua",
+        "theme": "Tema",
+        "notifications": "Notifiche"
+    },
+    "errors": {
+        "network": "Errore di rete. Controlla la tua connessione.",
+        "server": "Errore del server. Riprova più tardi.",
+        "unauthorized": "Non sei autorizzato a eseguire questa azione."
+    },
+    "landing": {
+        "welcome": "Benvenuto in VardastAi",
+        "description": "Il tuo servizio di trascrizione basato su IA"
+    }
+} 
