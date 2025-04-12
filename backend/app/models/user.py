@@ -12,6 +12,7 @@ users = Table(
     Column("password_hash", String(255), nullable=False),
     Column("email", String(255), nullable=True),
     Column("role", String(20), nullable=False),
+    Column("lang", String(2), nullable=False),
     Column("conf", JSON, nullable=True, server_default='{"doTranscript": true}'),
     Column("created_at", DateTime(timezone=True), server_default=func.now()),
     Column("updated_at", DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
