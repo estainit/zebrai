@@ -153,6 +153,7 @@ const Navigation = () => {
                                     className="language-dropdown"
                                 >
                                     <option value="en">English</option>
+                                    <option value="ar">العربية</option>
                                     <option value="fa">پارسی</option>
                                     <option value="it">Italiano</option>
                                     <option value="es">Español</option>

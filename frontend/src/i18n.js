@@ -4,6 +4,7 @@ import enTranslations from './locales/en.json';
 import esTranslations from './locales/es.json';
 import faTranslations from './locales/fa.json';
 import itTranslations from './locales/it.json';
+import arTranslations from './locales/ar.json';
 
 i18n
   .use(initReactI18next)
@@ -12,7 +13,8 @@ i18n
       en: { translation: enTranslations },
       es: { translation: esTranslations },
       fa: { translation: faTranslations },
-      it: { translation: itTranslations }
+      it: { translation: itTranslations },
+      ar: { translation: arTranslations }
     },
     lng: 'en', // default language
     fallbackLng: 'en',
