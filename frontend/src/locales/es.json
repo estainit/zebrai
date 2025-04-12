@@ -1,0 +1,51 @@
+{
+    "common": {
+        "login": "Iniciar sesión",
+        "logout": "Cerrar sesión",
+        "username": "Nombre de usuario",
+        "password": "Contraseña",
+        "submit": "Enviar",
+        "error": "Error",
+        "success": "Éxito",
+        "loading": "Cargando...",
+        "cancel": "Cancelar",
+        "save": "Guardar",
+        "delete": "Eliminar",
+        "edit": "Editar",
+        "back": "Atrás"
+    },
+    "auth": {
+        "login_with_google": "Continuar con Google",
+        "login_error": "Error al iniciar sesión. Por favor, inténtalo de nuevo.",
+        "session_expired": "Tu sesión ha expirado. Por favor, inicia sesión nuevamente."
+    },
+    "transcriptions": {
+        "title": "Transcripciones",
+        "no_transcriptions": "No se encontraron transcripciones",
+        "delete_confirm": "¿Estás seguro de que deseas eliminar esta transcripción?",
+        "delete_success": "Transcripción eliminada exitosamente",
+        "delete_error": "Error al eliminar la transcripción",
+        "load_more": "Cargar más",
+        "filter": {
+            "all": "Todo el tiempo",
+            "today": "Hoy",
+            "week": "Esta semana",
+            "month": "Este mes"
+        }
+    },
+    "settings": {
+        "title": "Configuración",
+        "language": "Idioma",
+        "theme": "Tema",
+        "notifications": "Notificaciones"
+    },
+    "errors": {
+        "network": "Error de red. Por favor, verifica tu conexión.",
+        "server": "Error del servidor. Por favor, inténtalo más tarde.",
+        "unauthorized": "No estás autorizado para realizar esta acción."
+    },
+    "landing": {
+        "welcome": "Bienvenido a VardastAi",
+        "description": "Tu servicio de transcripción potenciado por IA"
+    }
+} 

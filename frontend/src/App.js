@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { RecordingProvider } from './context/RecordingContext';
 import Login from './components/Login';
@@ -99,13 +99,11 @@ const AppContent = () => {
 
 function App() {
   return (
-    <Router>
-      <AuthProvider>
-        <RecordingProvider>
-          <AppContent />
-        </RecordingProvider>
-      </AuthProvider>
-    </Router>
+    <AuthProvider>
+      <RecordingProvider>
+        <AppContent />
+      </RecordingProvider>
+    </AuthProvider>
   );
 }
 

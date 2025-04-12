@@ -1,12 +1,15 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import './LandingPage.css';
 
 const LandingPage = () => {
+  const { t } = useTranslation();
+
   return (
     <div className="landing-page">
       <div className="welcome-content">
-        <h1>Welcome to VardastAi</h1>
-        <p>وردست زبر و زرنگ شما</p>
+        <h1>{t('landing.welcome')}</h1>
+        <p>{t('landing.description')}</p>
       </div>
       
       <div className="features-grid">

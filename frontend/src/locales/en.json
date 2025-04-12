@@ -1,0 +1,51 @@
+{
+    "common": {
+        "login": "Login",
+        "logout": "Logout",
+        "username": "Username",
+        "password": "Password",
+        "submit": "Submit",
+        "error": "Error",
+        "success": "Success",
+        "loading": "Loading...",
+        "cancel": "Cancel",
+        "save": "Save",
+        "delete": "Delete",
+        "edit": "Edit",
+        "back": "Back"
+    },
+    "auth": {
+        "login_with_google": "Continue with Google",
+        "login_error": "Login failed. Please try again.",
+        "session_expired": "Your session has expired. Please log in again."
+    },
+    "transcriptions": {
+        "title": "Transcriptions",
+        "no_transcriptions": "No transcriptions found",
+        "delete_confirm": "Are you sure you want to delete this transcription?",
+        "delete_success": "Transcription deleted successfully",
+        "delete_error": "Error deleting transcription",
+        "load_more": "Load More",
+        "filter": {
+            "all": "All Time",
+            "today": "Today",
+            "week": "This Week",
+            "month": "This Month"
+        }
+    },
+    "settings": {
+        "title": "Settings",
+        "language": "Language",
+        "theme": "Theme",
+        "notifications": "Notifications"
+    },
+    "errors": {
+        "network": "Network error. Please check your connection.",
+        "server": "Server error. Please try again later.",
+        "unauthorized": "You are not authorized to perform this action."
+    },
+    "landing": {
+        "welcome": "Welcome to VardastAi",
+        "description": "Your AI-powered transcription service"
+    }
+} 
