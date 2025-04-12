@@ -1,7 +1,6 @@
 import Cookies from 'js-cookie';
 
-const LANGUAGE_COOKIE_KEY = 'user_language';
-const LANGUAGE_STORAGE_KEY = 'user_language';
+import { LANGUAGE_COOKIE_KEY, LANGUAGE_STORAGE_KEY } from '../config/constants';
 
 /**
  * Detects user's preferred language following this priority:

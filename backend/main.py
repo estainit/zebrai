@@ -86,6 +86,9 @@ class PasswordResetRequest(BaseModel):
 class BatchDeleteRequest(BaseModel):
     ids: List[int] 
 
+class UserLanguageUpdate(BaseModel):
+    lang: str
+
 # Add JWT configuration
 JWT_SECRET = os.getenv("JWT_SECRET", "your-secret-key")  # In production, use a secure secret
 JWT_ALGORITHM = "HS256"
@@ -568,6 +571,29 @@ async def get_user_profile(
         raise HTTPException(
             status_code=500,
             detail="Error fetching user profile"
+        )
+
+@app.put("/api/user/profile/language")
+async def update_user_language(
+    language_data: UserLanguageUpdate,
+    current_user = Depends(verify_token),
+    db: AsyncSession = Depends(get_db_session)
+):
+    """Update the user's language preference."""
+    try:
+        # Update the user's language
+        update_query = users.update().where(users.c.username == current_user.username).values(
+            lang=language_data.lang
+        )
+        await db.execute(update_query)
+        await db.commit()
+        
+        return {"message": "Language updated successfully", "lang": language_data.lang}
+    except Exception as e:
+        logger.error(f"Error updating user language: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail="Error updating user language"
         )
 
 # --- Run the server (for local development) ---

@@ -1,5 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 
+import { useUserProfile } from '../modules/UserProfile';
+import { STORAGE_AUTH_TOKEN_KEY, STORAGE_USERNAME_KEY, STORAGE_USER_PROFILE_KEY } from '../config/constants';
 const AuthContext = createContext();
 
 export const useAuth = () => useContext(AuthContext);
@@ -22,9 +24,9 @@ export const AuthProvider = ({ children }) => {
             handleSocialLogin(token, username);
         } else{
             // Check for existing token in localStorage
-            const storedToken = localStorage.getItem('authToken');
-            const storedUsername = localStorage.getItem('username');
-            const storedProfile = localStorage.getItem('userProfile');
+            const storedToken = localStorage.getItem(STORAGE_AUTH_TOKEN_KEY);
+            const storedUsername = localStorage.getItem(STORAGE_USERNAME_KEY);
+            const storedProfile = localStorage.getItem(STORAGE_USER_PROFILE_KEY);
             
             if (storedToken && storedUsername) {
                 setAuthToken(storedToken);
@@ -39,13 +41,13 @@ export const AuthProvider = ({ children }) => {
 
     const handleSocialLogin = async (token, username) => {
         // Store the token and username
-        localStorage.setItem('authToken', token);
-        localStorage.setItem('username', username);
+        localStorage.setItem(STORAGE_AUTH_TOKEN_KEY, token);
+        localStorage.setItem(STORAGE_USERNAME_KEY, username);
         setAuthToken(token);
         setUsername(username);
         setIsLoggedIn(true);
         
-        await fetchUserProfile(token);
+        await useUserProfile.fetchUserProfile(token);
         
         // Remove token from URL
         window.history.replaceState({}, document.title, window.location.pathname);
@@ -59,7 +61,7 @@ export const AuthProvider = ({ children }) => {
             window.location.href = '/';
         }
     };
-
+/* 
     const fetchUserProfile = async (token) => {
         try {
             const response = await fetch('https://vardastai.com/api/user/profile', {
@@ -81,7 +83,7 @@ export const AuthProvider = ({ children }) => {
         } catch (error) {
             console.error('Error fetching user profile:', error);
         }
-    };
+    }; */
 
     const login = async (username, password) => {
         try {
@@ -101,8 +103,8 @@ export const AuthProvider = ({ children }) => {
             const data = await response.json();
             
             // Handle username/password login response
-            localStorage.setItem('authToken', data.access_token);
-            localStorage.setItem('username', data.username);
+            localStorage.setItem(STORAGE_AUTH_TOKEN_KEY, data.access_token);
+            localStorage.setItem(STORAGE_USERNAME_KEY, data.username);
             setAuthToken(data.access_token);
             setUsername(data.username);
             setIsLoggedIn(true);
@@ -115,7 +117,7 @@ export const AuthProvider = ({ children }) => {
                 conf: data.conf
             };
             setUserProfile(profile);
-            localStorage.setItem('userProfile', JSON.stringify(profile));
+            localStorage.setItem(STORAGE_USER_PROFILE_KEY, JSON.stringify(profile));
             
             // Redirect to home page
             window.location.href = '/';
@@ -126,9 +128,9 @@ export const AuthProvider = ({ children }) => {
     };
 
     const logout = () => {
-        localStorage.removeItem('authToken');
-        localStorage.removeItem('username');
-        localStorage.removeItem('userProfile');
+        localStorage.removeItem(STORAGE_AUTH_TOKEN_KEY);
+        localStorage.removeItem(STORAGE_USERNAME_KEY);
+        localStorage.removeItem(STORAGE_USER_PROFILE_KEY);
         setAuthToken(null);
         setUsername('');
         setUserProfile(null);
@@ -147,6 +149,33 @@ export const AuthProvider = ({ children }) => {
         logout();
     };
 
+    const updateUserLanguage = async (lang) => {
+        try {
+            const response = await fetch('https://vardastai.com/api/user/profile/language', {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${authToken}`
+                },
+                body: JSON.stringify({ lang })
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to update language preference');
+            }
+
+            // Update local profile
+            const updatedProfile = { ...userProfile, lang };
+            setUserProfile(updatedProfile);
+            localStorage.setItem(STORAGE_USER_PROFILE_KEY, JSON.stringify(updatedProfile));
+            
+            return true;
+        } catch (error) {
+            console.error('Error updating language:', error);
+            return false;
+        }
+    };
+
     const value = {
         isLoggedIn,
         authToken,
@@ -156,7 +185,8 @@ export const AuthProvider = ({ children }) => {
         login,
         logout,
         handleSessionExpired,
-        handleSocialLogin
+        handleSocialLogin,
+        updateUserLanguage
     };
 
     return (

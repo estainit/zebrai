@@ -6,6 +6,7 @@ import Login from './components/Login';
 import TranscriptionList from './components/TranscriptionList';
 import Navigation from './components/Navigation';
 import LandingPage from './components/LandingPage';
+import './i18n'; // Import i18n configuration
 import './App.css';
 
 // --- Configuration ---

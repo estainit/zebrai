@@ -1,4 +1,5 @@
 import { useAuth } from '../context/AuthContext';
+import { STORAGE_AUTH_TOKEN_KEY } from '../config/constants';
 
 /**
  * Wrapper for fetch that handles authentication and error responses
@@ -9,7 +10,7 @@ import { useAuth } from '../context/AuthContext';
  */
 export const fetchWithAuth = async (url, options = {}, handleSessionExpired) => {
   // Get the auth token from localStorage
-  const token = localStorage.getItem('authToken');
+  const token = localStorage.getItem(STORAGE_AUTH_TOKEN_KEY);
   
   // Add authorization header if token exists
   const headers = {

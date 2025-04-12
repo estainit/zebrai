@@ -19,6 +19,21 @@
         "login_error": "Accesso fallito. Riprova.",
         "session_expired": "La tua sessione è scaduta. Accedi di nuovo."
     },
+    "navigation": {
+        "menu1": "Menu 1",
+        "menu2": "Menu 2",
+        "voices": "Voci",
+        "all_voices": "Tutte le voci",
+        "submenu1": "Sottomenu 1",
+        "submenu2": "Sottomenu 2",
+        "submenu2_1": "Sottomenu 2.1",
+        "submenu2_2": "Sottomenu 2.2",
+        "submenu2_3": "Sottomenu 2.3"
+    },
+    "recording": {
+        "start": "Inizia registrazione",
+        "stop": "Ferma registrazione"
+    },
     "transcriptions": {
         "title": "Trascrizioni",
         "no_transcriptions": "Nessuna trascrizione trovata",
@@ -45,7 +60,7 @@
         "unauthorized": "Non sei autorizzato a eseguire questa azione."
     },
     "landing": {
-        "welcome": "Benvenuto in VardastAi",
-        "description": "Il tuo servizio di trascrizione basato su IA"
+        "welcome": "Benvenuto {{username}} in VardastAi",
+        "welcome_guest": "Benvenuto in VardastAi"
     }
 } 

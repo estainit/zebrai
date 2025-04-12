@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useRecording } from '../context/RecordingContext';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Link, redirect, useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useLanguage } from '../hooks/useLanguage';
+import { useUserProfile } from '../modules/UserProfile';
 import './Navigation.css';
 
 const Navigation = () => {
@@ -18,8 +19,9 @@ const Navigation = () => {
     const [activeMenu, setActiveMenu] = useState(null);
     const location = useLocation();
     const navigate = useNavigate();
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
     const { currentLanguage, changeLanguage } = useLanguage(isLoggedIn ? userProfile?.lang : null);
+    const { updateUserLanguage } = useUserProfile();
 
     const toggleMenu = () => {
         setIsMenuOpen(!isMenuOpen);
@@ -40,9 +42,22 @@ const Navigation = () => {
         navigate('/login');
     };
 
-    const handleLanguageChange = (e) => {
+    const handleLanguageChange = async (e) => {
         const newLanguage = e.target.value;
-        changeLanguage(newLanguage, true); // true to remember the choice
+        try {
+            // Update language in the database
+            const success = await updateUserLanguage(newLanguage);
+            if (success) {
+                // Change the UI language immediately
+                changeLanguage(newLanguage, true);
+                // Force a re-render of the translations
+                await i18n.reloadResources([newLanguage]);
+            } else {
+                console.error('Failed to update language preference');
+            }
+        } catch (error) {
+            console.error('Error updating language:', error);
+        }
     };
 
     return (
@@ -54,7 +69,7 @@ const Navigation = () => {
                         VardastAI
                     </Link>
                     <p className="welcome-text">
-                        {isLoggedIn ? `Welcome, ${username}!` : 'Welcome to Vardastai'}
+                        {isLoggedIn ? t('landing.welcome', { username }) : t('landing.welcome_guest')}
                     </p>
                 </div>
 
@@ -66,12 +81,12 @@ const Navigation = () => {
                                     className={`menu-button ${activeMenu === 'menu1' ? 'active' : ''}`}
                                     onClick={() => handleMenuClick('menu1')}
                                 >
-                                    Menu 1
+                                    {t('navigation.menu1')}
                                 </button>
                                 {activeMenu === 'menu1' && (
                                     <div className="dropdown-menu">
-                                        <Link to="/menu1/submenu1">Submenu 1</Link>
-                                        <Link to="/menu1/submenu2">Submenu 2</Link>
+                                        <Link to="/menu1/submenu1">{t('navigation.submenu1')}</Link>
+                                        <Link to="/menu1/submenu2">{t('navigation.submenu2')}</Link>
                                     </div>
                                 )}
                             </div>
@@ -81,11 +96,11 @@ const Navigation = () => {
                                     className={`menu-button ${activeMenu === 'voices' ? 'active' : ''}`}
                                     onClick={() => handleMenuClick('voices')}
                                 >
-                                    Voices
+                                    {t('navigation.voices')}
                                 </button>
                                 {activeMenu === 'voices' && (
                                     <div className="dropdown-menu">
-                                        <Link to="/voices">All Voices</Link>
+                                        <Link to="/voices">{t('navigation.all_voices')}</Link>
                                     </div>
                                 )}
                             </div>
@@ -95,13 +110,13 @@ const Navigation = () => {
                                     className={`menu-button ${activeMenu === 'menu2' ? 'active' : ''}`}
                                     onClick={() => handleMenuClick('menu2')}
                                 >
-                                    Menu 2
+                                    {t('navigation.menu2')}
                                 </button>
                                 {activeMenu === 'menu2' && (
                                     <div className="dropdown-menu">
-                                        <a href="#">Submenu 2.1</a>
-                                        <a href="#">Submenu 2.2</a>
-                                        <a href="#">Submenu 2.3</a>
+                                        <a href="#">{t('navigation.submenu2_1')}</a>
+                                        <a href="#">{t('navigation.submenu2_2')}</a>
+                                        <a href="#">{t('navigation.submenu2_3')}</a>
                                     </div>
                                 )}
                             </div>
@@ -111,7 +126,7 @@ const Navigation = () => {
                                     className="menu-button"
                                     onClick={handleLogout}
                                 >
-                                    Logout
+                                    {t('common.logout')}
                                 </button>
                             </div>
 
@@ -121,7 +136,7 @@ const Navigation = () => {
                                     onClick={isRecording ? handleStopRecording : () => handleStartRecording(authToken, webSocketRef, handleSessionExpired)}
                                     disabled={!isLoggedIn}
                                 >
-                                    {isRecording ? 'Stop' : 'Start Recording'}
+                                    {isRecording ? t('recording.stop') : t('recording.start')}
                                     {isRecording && (
                                         <>
                                             <span className="recording-indicator"></span>
