@@ -26,6 +26,13 @@ class PasswordResetRequest(BaseModel):
     username: str
     new_password: str
 
+class UserProfile(BaseModel):
+    username: str
+    email: str
+    role: str
+    lang: str
+    conf: dict
+
 class BatchDeleteRequest(BaseModel):
     ids: List[int]
 
@@ -43,6 +50,28 @@ async def login(login_data: LoginRequest, db: AsyncSession = Depends(get_db_sess
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An unexpected error occurred during login"
+        )
+
+@router.get("/user/profile")
+async def get_user_profile(
+    current_user = Depends(verify_token),
+    db: AsyncSession = Depends(get_db_session)
+):
+    """Get the current user's profile."""
+    try:
+        # The verify_token dependency already returns the user
+        return {
+            "username": current_user.username,
+            "email": current_user.email,
+            "role": current_user.role,
+            "lang": current_user.lang,
+            "conf": current_user.conf
+        }
+    except Exception as e:
+        logger.error(f"Error fetching user profile: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error fetching user profile"
         )
 
 @router.post("/reset-password")

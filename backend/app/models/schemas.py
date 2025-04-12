@@ -6,6 +6,7 @@ class User(BaseModel):
     id: int
     username: str
     role: str
+    lang: str
     conf: Optional[Dict[str, Any]] = None
     created_at: Optional[datetime.datetime] = None
     updated_at: Optional[datetime.datetime] = None

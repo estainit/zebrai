@@ -99,11 +99,9 @@ const AppContent = () => {
 
 function App() {
   return (
-    <AuthProvider>
       <RecordingProvider>
         <AppContent />
       </RecordingProvider>
-    </AuthProvider>
   );
 }
 

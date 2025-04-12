@@ -7,7 +7,7 @@ import { useLanguage } from '../hooks/useLanguage';
 import './Navigation.css';
 
 const Navigation = () => {
-    const { isLoggedIn, username, logout, webSocketRef, handleSessionExpired, authToken } = useAuth();
+    const { isLoggedIn, username, logout, webSocketRef, handleSessionExpired, authToken, userProfile } = useAuth();
     const { 
         isRecording, 
         recordingDuration, 
@@ -19,7 +19,7 @@ const Navigation = () => {
     const location = useLocation();
     const navigate = useNavigate();
     const { t } = useTranslation();
-    const { currentLanguage, changeLanguage } = useLanguage();
+    const { currentLanguage, changeLanguage } = useLanguage(isLoggedIn ? userProfile?.lang : null);
 
     const toggleMenu = () => {
         setIsMenuOpen(!isMenuOpen);

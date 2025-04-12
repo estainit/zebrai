@@ -7,7 +7,7 @@ const Login = () => {
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
-    const { login } = useAuth();
+    const { login, handleSocialLogin } = useAuth();
     const navigate = useNavigate();
     const location = useLocation();
 
@@ -20,13 +20,9 @@ const Login = () => {
         }
 
         // Handle messages from popup window
-        const handleMessage = (event) => {
+        const handleMessage = async (event) => {
             if (event.data.type === 'oauth-success') {
-                // Store the token and username
-                localStorage.setItem('authToken', event.data.token);
-                localStorage.setItem('username', event.data.username);
-                // Navigate to home
-                window.location.href = '/';
+                await handleSocialLogin(event.data.token, event.data.username);
             } else if (event.data.type === 'oauth-error') {
                 setError(event.data.error);
             }
@@ -34,7 +30,7 @@ const Login = () => {
 
         window.addEventListener('message', handleMessage);
         return () => window.removeEventListener('message', handleMessage);
-    }, [location]);
+    }, [location, handleSocialLogin]);
 
     const handleSubmit = async (e) => {
         e.preventDefault();

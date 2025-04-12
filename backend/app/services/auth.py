@@ -26,6 +26,7 @@ async def authenticate_user(username: str, password: str, db: AsyncSession):
             "token_type": "bearer",
             "username": user.username,
             "role": user.role,
+            "lang": user.lang,
             "conf": user.conf
         }
     except Exception as e:

@@ -8,6 +8,7 @@ export const AuthProvider = ({ children }) => {
     const [isLoggedIn, setIsLoggedIn] = useState(false);
     const [authToken, setAuthToken] = useState(null);
     const [username, setUsername] = useState('');
+    const [userProfile, setUserProfile] = useState(null);
     const webSocketRef = useRef(null);
 
     useEffect(() => {
@@ -19,25 +20,32 @@ export const AuthProvider = ({ children }) => {
         if (token && username) {
             // Handle social login callback
             handleSocialLogin(token, username);
-        } else {
+        } else{
             // Check for existing token in localStorage
             const storedToken = localStorage.getItem('authToken');
             const storedUsername = localStorage.getItem('username');
+            const storedProfile = localStorage.getItem('userProfile');
+            
             if (storedToken && storedUsername) {
                 setAuthToken(storedToken);
                 setUsername(storedUsername);
+                if (storedProfile) {
+                    setUserProfile(JSON.parse(storedProfile));
+                }
                 setIsLoggedIn(true);
             }
         }
     }, []);
 
-    const handleSocialLogin = (token, username) => {
+    const handleSocialLogin = async (token, username) => {
         // Store the token and username
         localStorage.setItem('authToken', token);
         localStorage.setItem('username', username);
         setAuthToken(token);
         setUsername(username);
         setIsLoggedIn(true);
+        
+        await fetchUserProfile(token);
         
         // Remove token from URL
         window.history.replaceState({}, document.title, window.location.pathname);
@@ -49,6 +57,29 @@ export const AuthProvider = ({ children }) => {
         } else {
             // If not a popup, just redirect to home
             window.location.href = '/';
+        }
+    };
+
+    const fetchUserProfile = async (token) => {
+        try {
+            const response = await fetch('https://vardastai.com/api/user/profile', {
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+            
+            if (!response.ok) {
+                console.error('Profile fetch failed:', response.status, response.statusText);
+                const errorText = await response.text();
+                console.error('Error response body:', errorText);
+                return;
+            }
+            
+            const profile = await response.json();
+            setUserProfile(profile);
+            localStorage.setItem('userProfile', JSON.stringify(profile));
+        } catch (error) {
+            console.error('Error fetching user profile:', error);
         }
     };
 
@@ -76,6 +107,16 @@ export const AuthProvider = ({ children }) => {
             setUsername(data.username);
             setIsLoggedIn(true);
             
+            // Set user profile from login response
+            const profile = {
+                username: data.username,
+                role: data.role,
+                lang: data.lang,
+                conf: data.conf
+            };
+            setUserProfile(profile);
+            localStorage.setItem('userProfile', JSON.stringify(profile));
+            
             // Redirect to home page
             window.location.href = '/';
         } catch (error) {
@@ -87,8 +128,10 @@ export const AuthProvider = ({ children }) => {
     const logout = () => {
         localStorage.removeItem('authToken');
         localStorage.removeItem('username');
+        localStorage.removeItem('userProfile');
         setAuthToken(null);
         setUsername('');
+        setUserProfile(null);
         setIsLoggedIn(false);
         
         // Close WebSocket connection if exists
@@ -108,10 +151,12 @@ export const AuthProvider = ({ children }) => {
         isLoggedIn,
         authToken,
         username,
+        userProfile,
+        webSocketRef,
         login,
         logout,
-        webSocketRef,
         handleSessionExpired,
+        handleSocialLogin
     };
 
     return (

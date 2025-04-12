@@ -46,7 +46,7 @@ os.makedirs(TEMP_AUDIO_DIR, exist_ok=True)
 app = FastAPI()
 security = HTTPBearer()
 
-# Configure CORS
+""" # Configure CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000", "http://localhost:8000", "https://vardastai.com"],  # Frontend URLs
@@ -55,7 +55,7 @@ app.add_middleware(
     allow_headers=["Content-Type", "Authorization", "Accept", "Origin", "X-Requested-With"],
     expose_headers=["*"],
     max_age=3600  # Cache preflight requests for 1 hour
-)
+) """
 
 # Add to your existing CORS configuration
 app.add_middleware(
@@ -64,6 +64,7 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    max_age=3600  # Cache preflight requests for 1 hour
 )
 
 # --- Database Initialization ---
@@ -175,7 +176,7 @@ async def verify_user(username: str, password: str, db: AsyncSession):
             detail="Invalid credentials"
         )
 
-# Replace the login endpoint
+# --- classic login by username/password ---
 @app.post("/api/login")
 async def login(login_data: LoginRequest, db: AsyncSession = Depends(get_db_session)):
     """Authenticate user and return JWT token."""
@@ -546,6 +547,28 @@ async def google_auth():
 @app.get("/api/auth/google/callback")
 async def handle_google_callback(code: str, db: AsyncSession = Depends(get_db_session)):
     return await google_auth_callback(code, db)
+
+@app.get("/api/user/profile")
+async def get_user_profile(
+    current_user = Depends(verify_token),
+    db: AsyncSession = Depends(get_db_session)
+):
+    """Get the current user's profile."""
+    try:
+        # The verify_token dependency already returns the user
+        return {
+            "username": current_user.username,
+            "email": current_user.email,
+            "role": current_user.role,
+            "lang": current_user.lang,
+            "conf": current_user.conf
+        }
+    except Exception as e:
+        logger.error(f"Error fetching user profile: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail="Error fetching user profile"
+        )
 
 # --- Run the server (for local development) ---
 # if __name__ == "__main__":
