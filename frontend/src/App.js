@@ -5,6 +5,7 @@ import { RecordingProvider } from './context/RecordingContext';
 import Login from './components/Login';
 import TranscriptionList from './components/TranscriptionList';
 import Navigation from './components/Navigation';
+import LandingPage from './components/LandingPage';
 import './App.css';
 
 // --- Configuration ---
@@ -80,10 +81,7 @@ const AppContent = () => {
             path="/" 
             element={
               <PrivateRoute>
-                <div className="home-content">
-                  <h1>Welcome to VardastAi</h1>
-                  <p>وردست زبر و زرنگ شما</p>
-                </div>
+                <LandingPage />
               </PrivateRoute>
             } 
           />

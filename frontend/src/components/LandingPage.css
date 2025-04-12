@@ -1,0 +1,98 @@
+.landing-page {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-height: calc(100vh - 200px); /* Account for header and footer */
+  padding: 2rem;
+  gap: 3rem;
+}
+
+.welcome-content {
+  text-align: center;
+  max-width: 800px;
+}
+
+.welcome-content h1 {
+  font-size: 2.5rem;
+  color: #333;
+  margin-bottom: 1rem;
+}
+
+.welcome-content p {
+  font-size: 1.2rem;
+  color: #666;
+  line-height: 1.6;
+}
+
+.features-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 2rem;
+  width: 100%;
+  max-width: 1200px;
+  padding: 0 1rem;
+}
+
+.feature-card {
+  padding: 2rem;
+  border-radius: 12px;
+  color: white;
+  min-height: 200px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+  cursor: pointer;
+}
+
+.feature-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+}
+
+.feature-card h2 {
+  font-size: 1.8rem;
+  margin-bottom: 1rem;
+}
+
+.feature-card p {
+  font-size: 1.1rem;
+  line-height: 1.5;
+  opacity: 0.9;
+}
+
+.import-history {
+  background: linear-gradient(135deg, #4CAF50, #45a049);
+}
+
+.new-client {
+  background: linear-gradient(135deg, #2196F3, #1976D2);
+}
+
+.manage {
+  background: linear-gradient(135deg, #FF9800, #F57C00);
+}
+
+.settings {
+  background: linear-gradient(135deg, #9C27B0, #7B1FA2);
+}
+
+@media (max-width: 768px) {
+  .features-grid {
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+  }
+  
+  .feature-card {
+    min-height: 180px;
+    padding: 1.5rem;
+  }
+  
+  .feature-card h2 {
+    font-size: 1.5rem;
+  }
+  
+  .feature-card p {
+    font-size: 1rem;
+  }
+} 
